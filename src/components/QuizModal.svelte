@@ -1,0 +1,194 @@
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+  
+  export let show = false;
+  export let quizWords: { word: string; answer: string; userInput: string }[] = [];
+  export let currentQuizIndex = 0;
+  export let showResults = false;
+  export let scores: { correct: boolean }[] = [];
+  
+  const dispatch = createEventDispatcher();
+  
+  // 임시 입력값을 저장할 변수
+  let tempInput = '';
+  let isComposing = false;
+  let isFocused = false;
+
+  function handleClose() {
+    dispatch('close');
+  }
+
+  function handleNext() {
+    if (tempInput.trim()) {
+      quizWords[currentQuizIndex].userInput = tempInput;
+    }
+    dispatch('next');
+    // 다음 문제로 넘어갈 때 임시 입력값 초기화
+    tempInput = quizWords[currentQuizIndex + 1]?.userInput || '';
+  }
+
+  function handlePrevious() {
+    if (tempInput.trim()) {
+      quizWords[currentQuizIndex].userInput = tempInput;
+    }
+    dispatch('previous');
+    // 이전 문제로 돌아갈 때 임시 입력값 초기화
+    tempInput = quizWords[currentQuizIndex - 1]?.userInput || '';
+  }
+
+  function handleCheckAnswers() {
+    // 채점 전에 현재 입력값 저장
+    if (tempInput.trim()) {
+      quizWords[currentQuizIndex].userInput = tempInput;
+    }
+    dispatch('check');
+  }
+
+  function handleCompositionStart() {
+    isComposing = true;
+  }
+
+  function handleCompositionEnd() {
+    isComposing = false;
+  }
+
+  function handleKeyPress(event: KeyboardEvent) {
+    if (event.key === 'Enter' && !isComposing) {
+      event.preventDefault();
+      // 엔터를 눌렀을 때만 입력값 저장
+      if (tempInput.trim()) {
+        quizWords[currentQuizIndex].userInput = tempInput;
+      }
+      
+      if (currentQuizIndex < quizWords.length - 1) {
+        handleNext();
+      } else {
+        handleCheckAnswers();
+      }
+    }
+  }
+
+  function handleFocus() {
+    isFocused = true;
+  }
+
+  function handleBlur() {
+    isFocused = false;
+  }
+
+  // 현재 문제가 바뀔 때마다 임시 입력값 초기화
+  $: {
+    if (show && !showResults) {
+      tempInput = quizWords[currentQuizIndex]?.userInput || '';
+    }
+  }
+</script>
+
+{#if show}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-xl">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-pink-600">🌟 단어 시험</h2>
+        <button
+          on:click={handleClose}
+          class="text-pink-400 hover:text-pink-600 text-xl"
+        >
+          ✕
+        </button>
+      </div>
+
+      {#if !showResults}
+        <div class="space-y-6">
+          <div class="text-center">
+            <p class="text-lg text-pink-600 font-medium mb-2">
+              {currentQuizIndex + 1}번째 문제 / 총 {quizWords.length}문제
+            </p>
+            <p class="text-2xl font-bold mb-6 text-gray-800">{quizWords[currentQuizIndex]?.word}</p>
+          </div>
+          <input
+            type="text"
+            bind:value={tempInput}
+            placeholder={isFocused ? '' : '정답을 입력하고 엔터를 눌러주세요 💭'}
+            on:keydown={handleKeyPress}
+            on:compositionstart={handleCompositionStart}
+            on:compositionend={handleCompositionEnd}
+            on:focus={handleFocus}
+            on:blur={handleBlur}
+            class="w-full p-3 border-2 border-pink-200 rounded-lg focus:border-pink-400 focus:ring focus:ring-pink-200 focus:ring-opacity-50 text-center"
+          />
+          
+          <div class="mt-4 space-y-2">
+            <p class="text-sm font-medium text-pink-600">현재까지의 답안:</p>
+            <div class="bg-pink-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+              {#each quizWords as word, i}
+                <div class="flex justify-between items-center py-1 {i === currentQuizIndex ? 'text-pink-600 font-medium' : 'text-gray-600'}">
+                  <span>{i + 1}. {word.word}</span>
+                  <span>{word.userInput || '미입력'}</span>
+                </div>
+              {/each}
+            </div>
+          </div>
+          
+          <div class="flex justify-between pt-4">
+            <button
+              on:click={handlePrevious}
+              disabled={currentQuizIndex === 0}
+              class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 px-6 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ◀️ 이전
+            </button>
+            
+            {#if currentQuizIndex === quizWords.length - 1}
+              <button
+                on:click={handleCheckAnswers}
+                class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full"
+              >
+                채점하기 ✨
+              </button>
+            {:else}
+              <button
+                on:click={handleNext}
+                class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full"
+              >
+                다음 ▶️
+              </button>
+            {/if}
+          </div>
+        </div>
+      {:else}
+        <div>
+          <h3 class="text-xl font-bold mb-6 text-center text-pink-600">✨ 시험 결과 ✨</h3>
+          <div class="space-y-3">
+            {#each quizWords as word, i}
+              <div class="p-4 rounded-lg {scores[i].correct ? 'bg-green-50 border-2 border-green-100' : 'bg-pink-50 border-2 border-pink-100'}">
+                <p class="font-bold text-gray-800">{word.word}</p>
+                <div class="mt-2 text-sm">
+                  <p>
+                    나의 답: <span class={scores[i].correct ? 'text-green-600 font-medium' : 'text-pink-600'}>{word.userInput}</span>
+                  </p>
+                  {#if !scores[i].correct}
+                    <p class="text-gray-600">정답: {word.answer}</p>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+          <div class="mt-6 text-center">
+            <p class="text-2xl font-bold text-pink-600">
+              총점: {scores.filter(s => s.correct).length} / {scores.length}
+            </p>
+            <p class="mt-2 text-gray-600">
+              {#if scores.filter(s => s.correct).length === scores.length}
+                🎉 완벽해요! 정말 잘했어요! 🎉
+              {:else if scores.filter(s => s.correct).length >= scores.length * 0.7}
+                ⭐ 잘했어요! 조금만 더 노력해봐요! ⭐
+              {:else}
+                💪 다음에는 더 잘할 수 있을 거예요! 💪
+              {/if}
+            </p>
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}

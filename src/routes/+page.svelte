@@ -1,6 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import * as XLSX from 'xlsx';
+  import { createClient } from '@supabase/supabase-js';
+  import NewListModal from '../components/NewListModal.svelte';
+  import NewWordModal from '../components/NewWordModal.svelte';
+  import QuizModal from '../components/QuizModal.svelte';
+  import ColumnMappingModal from '../components/ColumnMappingModal.svelte';
+
+  const supabase = createClient(
+    import.meta.env.VITE_SUPABASE_URL,
+    import.meta.env.VITE_SUPABASE_ANON_KEY
+  );
+
+  console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+  console.log('Supabase connection initialized');
 
   let fileInput: HTMLInputElement;
   let vocabularyData: Record<string, any>[] = [];
@@ -10,12 +23,65 @@
   let currentQuizIndex = 0;
   let showResults = false;
   let scores: { correct: boolean }[] = [];
+  
+  // 단어장 관련 상태
+  let vocabularyLists = [];
+  let selectedListId: string | null = null;
+  let showNewListModal = false;
+  let showNewWordModal = false;
+
+  // 기존 상태 변수들 아래에 추가
+  let showMappingModal = false;
+  let columnMapping = {
+    word: '',
+    partOfSpeech: '',
+    meaning: '',
+    example: ''
+  };
+
+  // 단어장 목록 로드
+  const loadVocabularyLists = async () => {
+    console.log('Loading vocabulary lists...');
+    const { data, error } = await supabase
+      .from('vocabulary_lists')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading lists:', error.message, error.details, error.hint);
+      return;
+    }
+
+    console.log('Loaded vocabulary lists:', data);
+    vocabularyLists = data;
+  };
+
+  // 선택된 단어장의 단어들 로드
+  const loadVocabularyWords = async (listId: string) => {
+    const { data, error } = await supabase
+      .from('vocabulary_words')
+      .select('*')
+      .eq('list_id', listId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading words:', error);
+      return;
+    }
+
+    vocabularyData = data;
+    headers = ['word', 'part_of_speech', 'meaning', 'example'];
+  };
+
+  onMount(() => {
+    loadVocabularyLists();
+  });
 
   const handleFileUpload = async (event: Event) => {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
     
-    if (!file) return;
+    if (!file || !selectedListId) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -30,21 +96,83 @@
       
       if (jsonData.length > 0) {
         headers = Object.keys(jsonData[0]);
+        // 컬럼 매핑 초기화
+        columnMapping = {
+          word: '',
+          partOfSpeech: '',
+          meaning: '',
+          example: ''
+        };
+        showMappingModal = true;
       }
     };
     
     reader.readAsArrayBuffer(file);
   };
 
+  // 데이터베이스에 단어장 저장
+  const saveVocabularyList = async () => {
+    try {
+      if (!selectedListId) return;
+
+      // 매핑된 컬럼을 사용하여 단어 데이터 변환
+      const wordsToInsert = vocabularyData.map(row => ({
+        list_id: selectedListId,
+        word: row[columnMapping.word],
+        part_of_speech: row[columnMapping.partOfSpeech] || null,
+        meaning: row[columnMapping.meaning],
+        example: row[columnMapping.example] || null
+      }));
+
+      // 단어 데이터 저장
+      const { error: wordsError } = await supabase
+        .from('vocabulary_words')
+        .insert(wordsToInsert);
+
+      if (wordsError) throw wordsError;
+
+      alert('단어가 성공적으로 추가되었습니다!');
+      showMappingModal = false;
+      
+      // 테이블 새로고침을 위한 데이터 다시 로드
+      await loadVocabularyWords(selectedListId);
+    } catch (error) {
+      console.error('Error saving vocabulary:', error);
+      alert('단어 저장 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 단어장 목록 로드
+  const loadVocabularyList = async () => {
+    const { data, error } = await supabase
+      .from('vocabulary_words')
+      .select(`
+        id,
+        word,
+        part_of_speech,
+        meaning,
+        example
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading vocabulary:', error);
+      return;
+    }
+
+    vocabularyData = data;
+    headers = ['word', 'part_of_speech', 'meaning', 'example'];
+  };
+
   const generateQuiz = () => {
-    if (vocabularyData.length === 0 || headers.length < 3) return;
+    if (vocabularyData.length === 0) return;
 
     const shuffled = [...vocabularyData]
       .sort(() => Math.random() - 0.5)
       .slice(0, 10)
       .map(item => ({
-        word: item[headers[0]],
-        answer: item[headers[2]],
+        word: item.word,
+        answer: item.meaning,
         userInput: ''
       }));
 
@@ -81,6 +209,16 @@
     showResults = false;
     scores = [];
   };
+
+  const handleKeyPress = (event: KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      if (currentQuizIndex < quizWords.length - 1) {
+        handleNext();
+      } else {
+        checkAnswers();
+      }
+    }
+  };
 </script>
 
 <div class="min-h-screen bg-pink-50 flex flex-col">
@@ -89,25 +227,67 @@
       ✨ 꾜리의 Power 단어공부 ✨
     </h1>
     
-    <div class="mb-12 max-w-md mx-auto">
-      <label class="block text-center">
-        <span class="text-lg text-pink-700 font-medium mb-3 block">📚 단어장 파일 올리기</span>
-        <input
-          type="file"
-          accept=".xlsx,.xls"
-          on:change={handleFileUpload}
-          bind:this={fileInput}
-          class="block w-full text-sm text-pink-500
-            file:mr-4 file:py-2 file:px-6
-            file:rounded-full file:border-0
-            file:text-sm file:font-medium
-            file:bg-pink-100 file:text-pink-600
-            hover:file:bg-pink-200
-            cursor-pointer"
-        />
-      </label>
+    <!-- 단어장 선택 및 생성 섹션 -->
+    <div class="mb-8">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-pink-600">📚 단어장</h2>
+        <button
+          on:click={() => showNewListModal = true}
+          class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
+        >
+          ✨ 새 단어장 만들기
+        </button>
+      </div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {#each vocabularyLists as list}
+          <button
+            on:click={() => {
+              selectedListId = list.id;
+              loadVocabularyWords(list.id);
+            }}
+            class="p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow
+              {selectedListId === list.id ? 'ring-2 ring-pink-500' : ''}"
+          >
+            <h3 class="font-bold text-gray-800">{list.title}</h3>
+            {#if list.description}
+              <p class="text-sm text-gray-600 mt-1">{list.description}</p>
+            {/if}
+          </button>
+        {/each}
+      </div>
     </div>
 
+    <!-- 파일 업로드 섹션 -->
+    {#if selectedListId}
+      <div class="mb-8">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold text-pink-600">📝 단어 관리</h2>
+          <div class="space-x-4">
+            <button
+              on:click={() => showNewWordModal = true}
+              class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
+            >
+              ✏️ 단어 추가
+            </button>
+            <label class="inline-block">
+              <span class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm cursor-pointer">
+                📥 엑셀 파일로 추가
+              </span>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                on:change={handleFileUpload}
+                bind:this={fileInput}
+                class="hidden"
+              />
+            </label>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- 단어 목록 및 시험 섹션 -->
     {#if vocabularyData.length > 0}
       <div class="mb-12 text-center">
         <button
@@ -142,105 +322,84 @@
           </tbody>
         </table>
       </div>
+    {:else if selectedListId}
+      <div class="text-center text-pink-600 text-lg">
+        <p>📝 단어를 추가하거나 엑셀 파일을 올려주세요!</p>
+      </div>
     {:else}
       <div class="text-center text-pink-600 text-lg">
-        <p>📝 엑셀 파일을 올려주시면 예쁘게 정리해드릴게요!</p>
+        <p>📚 단어장을 선택하거나 새로 만들어주세요!</p>
       </div>
     {/if}
   </div>
 </div>
 
-{#if showModal}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-xl">
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-pink-600">🌟 단어 시험</h2>
-        <button
-          on:click={closeModal}
-          class="text-pink-400 hover:text-pink-600 text-xl"
-        >
-          ✕
-        </button>
-      </div>
+<!-- 새 단어장 생성 모달 -->
+<NewListModal
+  show={showNewListModal}
+  on:close={() => showNewListModal = false}
+  on:create={async (event) => {
+    const { data, error } = await supabase
+      .from('vocabulary_lists')
+      .insert([event.detail])
+      .select()
+      .single();
 
-      {#if !showResults}
-        <div class="space-y-6">
-          <div class="text-center">
-            <p class="text-lg text-pink-600 font-medium mb-2">
-              {currentQuizIndex + 1}번째 문제 / 총 {quizWords.length}문제
-            </p>
-            <p class="text-2xl font-bold mb-6 text-gray-800">{quizWords[currentQuizIndex]?.word}</p>
-          </div>
-          <input
-            type="text"
-            bind:value={quizWords[currentQuizIndex].userInput}
-            placeholder="정답을 입력해주세요 💭"
-            class="w-full p-3 border-2 border-pink-200 rounded-lg focus:border-pink-400 focus:ring focus:ring-pink-200 focus:ring-opacity-50 text-center"
-          />
-          
-          <div class="flex justify-between pt-4">
-            <button
-              on:click={handlePrevious}
-              disabled={currentQuizIndex === 0}
-              class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 px-6 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              ◀️ 이전
-            </button>
-            
-            {#if currentQuizIndex === quizWords.length - 1}
-              <button
-                on:click={checkAnswers}
-                class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full"
-              >
-                채점하기 ✨
-              </button>
-            {:else}
-              <button
-                on:click={handleNext}
-                class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full"
-              >
-                다음 ▶️
-              </button>
-            {/if}
-          </div>
-        </div>
-      {:else}
-        <div>
-          <h3 class="text-xl font-bold mb-6 text-center text-pink-600">✨ 시험 결과 ✨</h3>
-          <div class="space-y-3">
-            {#each quizWords as word, i}
-              <div class="p-4 rounded-lg {scores[i].correct ? 'bg-green-50 border-2 border-green-100' : 'bg-pink-50 border-2 border-pink-100'}">
-                <p class="font-bold text-gray-800">{word.word}</p>
-                <div class="mt-2 text-sm">
-                  <p>
-                    나의 답: <span class={scores[i].correct ? 'text-green-600 font-medium' : 'text-pink-600'}>{word.userInput}</span>
-                  </p>
-                  {#if !scores[i].correct}
-                    <p class="text-gray-600">정답: {word.answer}</p>
-                  {/if}
-                </div>
-              </div>
-            {/each}
-          </div>
-          <div class="mt-6 text-center">
-            <p class="text-2xl font-bold text-pink-600">
-              총점: {scores.filter(s => s.correct).length} / {scores.length}
-            </p>
-            <p class="mt-2 text-gray-600">
-              {#if scores.filter(s => s.correct).length === scores.length}
-                🎉 완벽해요! 정말 잘했어요! 🎉
-              {:else if scores.filter(s => s.correct).length >= scores.length * 0.7}
-                ⭐ 잘했어요! 조금만 더 노력해봐요! ⭐
-              {:else}
-                💪 다음에는 더 잘할 수 있을 거예요! 💪
-              {/if}
-            </p>
-          </div>
-        </div>
-      {/if}
-    </div>
-  </div>
-{/if}
+    if (error) {
+      console.error('Error creating list:', error.message, error.details, error.hint);
+      alert('단어장 생성 중 오류가 발생했습니다: ' + error.message);
+      return;
+    }
+
+    console.log('Created new list:', data);
+    showNewListModal = false;
+    await loadVocabularyLists();
+  }}
+/>
+
+<!-- 새 단어 추가 모달 -->
+<NewWordModal
+  show={showNewWordModal}
+  on:close={() => showNewWordModal = false}
+  on:add={async (event) => {
+    if (!selectedListId) return;
+
+    const { error } = await supabase
+      .from('vocabulary_words')
+      .insert([{ ...event.detail, list_id: selectedListId }]);
+
+    if (error) {
+      console.error('Error adding word:', error);
+      alert('단어 추가 중 오류가 발생했습니다.');
+      return;
+    }
+
+    showNewWordModal = false;
+    await loadVocabularyWords(selectedListId);
+  }}
+/>
+
+<!-- 단어 시험 모달 -->
+<QuizModal
+  show={showModal}
+  {quizWords}
+  {currentQuizIndex}
+  {showResults}
+  {scores}
+  on:close={closeModal}
+  on:next={handleNext}
+  on:previous={handlePrevious}
+  on:check={checkAnswers}
+/>
+
+<!-- 컬럼 매핑 모달 -->
+<ColumnMappingModal
+  show={showMappingModal}
+  {headers}
+  bind:columnMapping
+  on:close={() => showMappingModal = false}
+  on:save={saveVocabularyList}
+/>
 
 <style>
   .container {
