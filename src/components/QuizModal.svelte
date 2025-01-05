@@ -1,3 +1,4 @@
+<!-- src/components/QuizModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { slide } from 'svelte/transition';

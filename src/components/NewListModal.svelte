@@ -1,3 +1,4 @@
+<!-- src/components/NewListModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { createClient } from '@supabase/supabase-js';

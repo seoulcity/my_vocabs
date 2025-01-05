@@ -1,3 +1,4 @@
+<!-- src/components/NewGroupModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { createClient } from '@supabase/supabase-js';

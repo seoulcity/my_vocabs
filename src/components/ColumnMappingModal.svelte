@@ -1,3 +1,4 @@
+<!-- src/components/ColumnMappingModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   

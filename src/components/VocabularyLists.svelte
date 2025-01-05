@@ -1,3 +1,4 @@
+<!-- src/components/VocabularyLists.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { createClient } from '@supabase/supabase-js';
@@ -499,28 +500,30 @@
 </script>
 
 <div class="mb-8">
-  <div class="flex justify-between items-center mb-4">
+  <div class="flex flex-col gap-4 mb-6">
     <div>
-      <h2 class="text-xl font-bold text-pink-600">📚 단어장</h2>
+      <h2 class="text-xl font-bold text-pink-600">
+        <i class="fas fa-book-open mr-2"></i>단어장
+      </h2>
       <p class="text-sm text-gray-600 mt-1">나만의 단어장을 만들고 관리해보세요!</p>
     </div>
-    <div class="space-x-2">
+    <div class="flex gap-2">
       <button
         on:click={() => dispatch('newGroup')}
-        class="bg-white hover:bg-pink-50 text-pink-600 border-2 border-pink-400 px-4 py-2 rounded-full text-sm transition-colors duration-200"
+        class="flex-1 bg-white hover:bg-pink-50 text-pink-600 border-2 border-pink-400 px-4 py-2 rounded-lg text-sm transition-colors duration-200 flex items-center justify-center"
       >
-        ✨ 새 그룹 만들기
+        <i class="fas fa-folder-plus mr-2"></i>새 그룹
       </button>
       <button
         on:click={() => dispatch('newList')}
-        class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
+        class="flex-1 bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-lg text-sm flex items-center justify-center"
       >
-        ✨ 새 단어장 만들기
+        <i class="fas fa-plus mr-2"></i>새 단어장
       </button>
     </div>
   </div>
   
-  <section class="space-y-4">
+  <section class="space-y-3">
     {#each groups as group (group.id)}
       <div
         class="bg-white rounded-lg shadow-sm p-4 transform transition-transform duration-200"
@@ -557,26 +560,26 @@
           <div class="flex justify-between items-start group">
             <button
               on:click={() => toggleGroup(group.id)}
-              class="flex items-center space-x-2 text-left flex-1"
+              class="flex items-start space-x-2 text-left flex-1"
             >
               <span 
-                class="transform transition-transform duration-300 ease-out {expandedGroups.has(group.id) ? 'rotate-90' : ''}"
+                class="transform transition-transform duration-300 ease-out mt-1.5 {expandedGroups.has(group.id) ? 'rotate-90' : ''}"
               >
-                ▶
+                <i class="fas fa-chevron-right text-gray-400"></i>
               </span>
               <div class="flex-1">
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center">
                   <h3 class="font-bold text-gray-800">{group.title}</h3>
-                  <span class="text-sm text-gray-500">
-                    ({vocabularyLists.filter(list => list.group_id === group.id).length}개 단어장, 
-                    {vocabularyLists
-                      .filter(list => list.group_id === group.id)
-                      .reduce((sum, list) => sum + (list.word_count || 0), 0)}개 단어)
-                  </span>
                 </div>
                 {#if group.description}
                   <p class="text-sm text-gray-600 mt-1">{group.description}</p>
                 {/if}
+                <p class="text-xs text-gray-500 mt-1">
+                  {vocabularyLists.filter(list => list.group_id === group.id).length}개 단어장,
+                  {vocabularyLists
+                    .filter(list => list.group_id === group.id)
+                    .reduce((sum, list) => sum + (list.word_count || 0), 0)}개 단어
+                </p>
               </div>
             </button>
             <div class="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -603,14 +606,14 @@
                 class="p-1 text-gray-400 hover:text-pink-500"
                 title="그룹 수정"
               >
-                ✏️
+                <i class="fas fa-edit"></i>
               </button>
               <button
                 on:click={() => handleDeleteGroup(group.id)}
                 class="p-1 text-gray-400 hover:text-pink-500"
                 title="그룹 삭제"
               >
-                🗑️
+                <i class="fas fa-trash"></i>
               </button>
             </div>
           </div>
@@ -618,29 +621,29 @@
           {#if expandedGroups.has(group.id)}
             <div
               transition:slide={{ duration: 300, easing: quintOut }}
-              class="mt-4 space-y-2 pl-6"
+              class="mt-3 space-y-2 pl-7"
             >
               {#if vocabularyLists.filter(list => list.group_id === group.id).length === 0}
                 <div
                   transition:slide={{ duration: 300, easing: quintOut }}
-                  class="text-center py-8 text-gray-500"
+                  class="text-center py-6 text-gray-500 bg-gray-50 rounded-lg"
                 >
-                  <p class="mb-2">아직 단어장이 없습니다</p>
+                  <p class="text-sm">아직 단어장이 없습니다</p>
                   <button
                     on:click={() => dispatch('newList')}
-                    class="text-pink-500 hover:text-pink-600 text-sm"
+                    class="text-pink-500 hover:text-pink-600 text-sm mt-2 flex items-center justify-center mx-auto"
                   >
-                    ✨ 새 단어장 만들기
+                    <i class="fas fa-plus mr-2"></i>새 단어장 만들기
                   </button>
                 </div>
               {:else}
                 {#each vocabularyLists.filter(list => list.group_id === group.id) as list (list.id)}
                   <div
-                    class="relative bg-white rounded-lg shadow-sm border border-gray-100 hover:border-pink-200 transition-all duration-200 hover:shadow-md group"
+                    class="relative bg-white rounded-lg border border-gray-100 hover:border-pink-200 transition-all duration-200 hover:shadow-sm group"
                     animate:flip={{ duration: 300 }}
                   >
                     {#if editingList?.id === list.id}
-                      <div class="p-4 space-y-2">
+                      <div class="p-3 space-y-2">
                         <input
                           type="text"
                           bind:value={editingList.title}
@@ -672,17 +675,17 @@
                           selectedListId = list.id;
                           dispatch('select', list.id);
                         }}
-                        class="w-full p-4 text-left"
+                        class="w-full p-3 text-left"
                       >
-                        <h3 class="font-bold text-gray-800">
+                        <h3 class="font-medium text-gray-800">
                           {list.title}
-                          <span class="text-sm font-normal text-gray-500 ml-2">
-                            ({list.word_count || 0}개 단어)
-                          </span>
                         </h3>
                         {#if list.description}
                           <p class="text-sm text-gray-600 mt-1">{list.description}</p>
                         {/if}
+                        <p class="text-xs text-gray-500 mt-1">
+                          {list.word_count || 0}개 단어
+                        </p>
                       </button>
                       <div class="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                         {#if vocabularyLists.filter(l => l.group_id === group.id).length > 1}
@@ -706,21 +709,21 @@
                           class="p-1 text-gray-400 hover:text-pink-500"
                           title="다른 그룹으로 이동"
                         >
-                          🔄
+                          <i class="fas fa-exchange-alt"></i>
                         </button>
                         <button
                           on:click={() => handleEdit(list)}
                           class="p-1 text-gray-400 hover:text-pink-500"
                           title="단어장 수정"
                         >
-                          ✏️
+                          <i class="fas fa-edit"></i>
                         </button>
                         <button
                           on:click={() => handleDelete(list.id)}
                           class="p-1 text-gray-400 hover:text-pink-500"
                           title="단어장 삭제"
                         >
-                          🗑️
+                          <i class="fas fa-trash"></i>
                         </button>
                       </div>
                     {/if}

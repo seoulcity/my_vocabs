@@ -1,3 +1,4 @@
+<!-- src/routes/+page.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import * as XLSX from 'xlsx';
@@ -11,6 +12,8 @@
   import { browser } from '$app/environment';
   import NewGroupModal from '../components/NewGroupModal.svelte';
   import StudyCalendar from '../components/StudyCalendar.svelte';
+  import DashboardLearningStatus from '../components/DashboardLearningStatus.svelte';
+  import DashboardQuizStats from '../components/DashboardQuizStats.svelte';
 
   // 환경 변수 체크
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -606,96 +609,15 @@
 
 <div class="container mx-auto px-4 py-8">
   <!-- 대시보드 섹션 -->
-  {#if dashboardStats}
-    <div class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
-      <!-- 최근 학습 현황 -->
-      <div class="bg-white rounded-lg shadow-sm p-6">
-        <h3 class="text-lg font-bold text-pink-600 mb-4">
-          <i class="fas fa-book mr-2"></i>학습 현황
-        </h3>
-        <div class="space-y-4">
-          <div>
-            <p class="text-3xl font-bold text-gray-800 flex items-baseline">
-              {dashboardStats.totalStats.totalWords}
-              <span class="text-sm font-normal text-gray-500 ml-2">누적 단어</span>
-              {#if dashboardStats.recentWords.count > 0}
-                <span class="ml-2 text-lg font-bold text-green-600">
-                  +{dashboardStats.recentWords.count}
-                </span>
-              {/if}
-            </p>
-            {#if dashboardStats.recentWords.trend !== 0}
-              <p class="text-sm {dashboardStats.recentWords.trend > 0 ? 'text-green-600' : 'text-pink-600'} mt-1">
-                {dashboardStats.recentWords.trend > 0 ? '▲' : '▼'}
-                {Math.abs(Math.round(dashboardStats.recentWords.trend))}% 전주 대비
-              </p>
-            {/if}
-          </div>
-          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              class="h-full bg-gradient-to-r from-pink-500 to-pink-300"
-              style="width: 100%"
-            ></div>
-            <div
-              class="h-full bg-gradient-to-r from-green-500 to-green-300 -mt-2"
-              style="width: {(dashboardStats.recentWords.count / dashboardStats.totalStats.totalWords) * 100}%"
-            ></div>
-          </div>
-          <p class="text-xs text-gray-500">
-            최근 7일간 {dashboardStats.recentWords.count}개의 새로운 단어를 학습했어요!
-          </p>
-        </div>
-      </div>
-
-      <!-- 퀴즈 통계 -->
-      <div class="bg-white rounded-lg shadow-sm p-6">
-        <h3 class="text-lg font-bold text-pink-600 mb-4">
-          <i class="fas fa-chart-bar mr-2"></i>퀴즈 성적
-        </h3>
-        <div class="space-y-4">
-          <div>
-            <div class="flex items-baseline gap-2">
-              <p class="text-3xl font-bold text-gray-800">
-                {Math.round(dashboardStats.quizStats.averageScore)}%
-              </p>
-              <p class="text-sm text-gray-500">누적 평균</p>
-              {#if dashboardStats.quizStats.scoresTrend.length > 0}
-                <p class="text-lg font-bold {dashboardStats.quizStats.scoresTrend[0] >= dashboardStats.quizStats.averageScore ? 'text-green-600' : 'text-pink-600'}">
-                  {Math.round(dashboardStats.quizStats.scoresTrend[0])}%
-                </p>
-                <p class="text-sm text-gray-500">최근</p>
-              {/if}
-            </div>
-            <p class="text-sm text-gray-600 mt-1">
-              총 {dashboardStats.quizStats.totalQuizzes}회 시험,
-              {dashboardStats.quizStats.totalWords}개 단어
-            </p>
-          </div>
-          {#if dashboardStats.quizStats.scoresTrend.length > 1}
-            <div class="space-y-1">
-              <p class="text-xs text-gray-500">최근 5회 성적 추이</p>
-              <div class="h-8 flex items-end gap-1">
-                {#each dashboardStats.quizStats.scoresTrend as score}
-                  <div
-                    class="w-full bg-gradient-to-t rounded-t transition-all duration-300
-                      {score >= dashboardStats.quizStats.averageScore ? 'from-green-500 to-green-300' : 'from-pink-500 to-pink-300'}"
-                    style="height: {score}%"
-                    title="{Math.round(score)}%"
-                  >
-                    <div class="text-xs text-white text-center mt-1">
-                      {Math.round(score)}%
-                    </div>
-                  </div>
-                {/each}
-              </div>
-              <div class="flex justify-between text-xs text-gray-400">
-                <span>5회 전</span>
-                <span>최근</span>
-              </div>
-            </div>
-          {/if}
-        </div>
-      </div>
+  <div class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
+    {#if dashboardStats}
+      <DashboardLearningStatus
+        totalWords={dashboardStats.totalStats.totalWords}
+        recentWords={dashboardStats.recentWords}
+      />
+      <DashboardQuizStats
+        quizStats={dashboardStats.quizStats}
+      />
 
       <!-- 누적 통계 -->
       <div class="bg-white rounded-lg shadow-sm p-6">
@@ -720,62 +642,135 @@
 
       <!-- 학습 캘린더 -->
       <StudyCalendar studyDates={dashboardStats.studyDates} />
-    </div>
-  {/if}
-
-  <VocabularyLists
-    {vocabularyLists}
-    {selectedListId}
-    {showNewListModal}
-    {showNewGroupModal}
-    {groups}
-    on:select={handleSelectList}
-    on:delete={handleDeleteList}
-    on:edit={handleEditList}
-    on:newGroup={() => showNewGroupModal = true}
-    on:newList={() => showNewListModal = true}
-  />
-
-  <!-- 파일 업로드 섹션 -->
-  {#if selectedListId}
-    <div class="mb-8">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h2 class="text-xl font-bold text-pink-600">📝 단어 관리</h2>
-          <p class="text-sm text-gray-600 mt-1">엑셀 파일로 한 번에 여러 단어를 추가하거나, 직접 입력할 수 있어요!</p>
+    {:else}
+      <!-- 스켈레톤 UI -->
+      <div class="bg-white rounded-lg shadow-sm p-6 relative overflow-hidden">
+        <div class="animate-pulse">
+          <div class="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div class="space-y-3">
+            <div class="h-8 bg-gray-200 rounded w-2/3"></div>
+            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div class="h-2 bg-gray-200 rounded w-full"></div>
+            <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+          </div>
         </div>
-        <div class="space-x-4">
-          <label class="inline-block">
-            <span class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm cursor-pointer">
-              📥 엑셀 파일로 추가
-            </span>
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              on:change={handleFileUpload}
-              bind:this={fileInput}
-              class="hidden"
-            />
-          </label>
-          <button
-            on:click={() => showNewWordModal = true}
-            class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
-          >
-            ✏️ 직접 입력하기
-          </button>
-        </div>
+        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent skeleton-loading"></div>
       </div>
-    </div>
-  {/if}
+      <div class="bg-white rounded-lg shadow-sm p-6 relative overflow-hidden">
+        <div class="animate-pulse">
+          <div class="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div class="space-y-3">
+            <div class="h-8 bg-gray-200 rounded w-2/3"></div>
+            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div class="space-y-1 mt-4">
+              <div class="h-8 bg-gray-200 rounded w-full"></div>
+              <div class="flex justify-between">
+                <div class="h-3 bg-gray-200 rounded w-12"></div>
+                <div class="h-3 bg-gray-200 rounded w-12"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent skeleton-loading"></div>
+      </div>
+      <div class="bg-white rounded-lg shadow-sm p-6 relative overflow-hidden">
+        <div class="animate-pulse">
+          <div class="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div class="grid grid-cols-7 gap-1">
+            {#each Array(7) as _}
+              <div class="h-4 bg-gray-200 rounded"></div>
+            {/each}
+            {#each Array(35) as _}
+              <div class="aspect-square bg-gray-200 rounded"></div>
+            {/each}
+          </div>
+        </div>
+        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent skeleton-loading"></div>
+      </div>
+    {/if}
+  </div>
 
-  <!-- 단어 목록 섹션 -->
-  <VocabularyTable
-    {vocabularyData}
-    {headers}
-    {selectedListId}
-    {selectedList}
-    on:quiz={generateQuiz}
-  />
+  <!-- 메인 콘텐츠 영역 -->
+  <div class="flex gap-6">
+    <!-- 왼쪽: 단어장 네비게이션 -->
+    <div class="w-80 flex-shrink-0">
+      <VocabularyLists
+        {vocabularyLists}
+        {selectedListId}
+        {showNewListModal}
+        {showNewGroupModal}
+        {groups}
+        on:select={handleSelectList}
+        on:delete={handleDeleteList}
+        on:edit={handleEditList}
+        on:newGroup={() => showNewGroupModal = true}
+        on:newList={() => showNewListModal = true}
+      />
+    </div>
+
+    <!-- 오른쪽: 단어 관리 영역 -->
+    <div class="flex-1">
+      {#if selectedListId}
+        <div class="bg-white rounded-lg shadow-sm p-6">
+          <!-- 단어장 헤더 -->
+          <div class="flex justify-between items-center mb-6">
+            <div>
+              <h2 class="text-xl font-bold text-gray-800">
+                {selectedList?.title}
+                <span class="text-sm font-normal text-gray-500 ml-2">
+                  ({vocabularyData.length}개 단어)
+                </span>
+              </h2>
+              {#if selectedList?.description}
+                <p class="text-sm text-gray-600 mt-1">{selectedList.description}</p>
+              {/if}
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                on:click={() => showNewWordModal = true}
+                class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm flex items-center"
+              >
+                <i class="fas fa-plus mr-2"></i>단어 추가
+              </button>
+              <label class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm flex items-center cursor-pointer">
+                <i class="fas fa-file-import mr-2"></i>엑셀 가져오기
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  on:change={handleFileUpload}
+                  bind:this={fileInput}
+                  class="hidden"
+                />
+              </label>
+            </div>
+          </div>
+
+          <!-- 단어 테이블 -->
+          <VocabularyTable
+            {vocabularyData}
+            {headers}
+            {selectedListId}
+            {selectedList}
+            on:quiz={generateQuiz}
+          />
+        </div>
+      {:else}
+        <div class="bg-white rounded-lg shadow-sm p-6 text-center">
+          <div class="max-w-md mx-auto">
+            <i class="fas fa-book text-6xl text-gray-300 mb-4"></i>
+            <h2 class="text-xl font-bold text-gray-800 mb-2">단어장을 선택해주세요</h2>
+            <p class="text-gray-600 mb-6">왼쪽 목록에서 단어장을 선택하면 단어 목록이 표시됩니다</p>
+            <button
+              on:click={() => showNewListModal = true}
+              class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-full text-sm inline-flex items-center"
+            >
+              <i class="fas fa-plus mr-2"></i>새 단어장 만들기
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
 </div>
 
 <!-- Modals -->
@@ -842,5 +837,18 @@
 
   input[type="file"]::file-selector-button {
     cursor: pointer;
+  }
+
+  @keyframes loading {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .skeleton-loading {
+    animation: loading 1.5s infinite;
   }
 </style>

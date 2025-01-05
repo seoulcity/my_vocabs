@@ -1,3 +1,4 @@
+<!-- src/components/StudyCalendar.svelte -->
 <script lang="ts">
   export let studyDates: Date[] = [];
   

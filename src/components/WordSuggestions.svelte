@@ -1,3 +1,4 @@
+<!-- src/components/WordSuggestions.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { createChatCompletion, type ChatMessage } from '../lib/services/openai';

@@ -1,3 +1,4 @@
+<!-- src/components/VocabularyTable.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
@@ -234,9 +235,9 @@
         </h3>
         <button
           on:click={() => dispatch('quiz')}
-          class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
+          class="bg-pink-100 hover:bg-pink-200 text-pink-600 px-4 py-2 rounded-full text-sm flex items-center"
         >
-          ✨ 퀴즈 시작하기
+          <i class="fas fa-graduation-cap mr-2"></i>퀴즈 시작하기
         </button>
       </div>
 
