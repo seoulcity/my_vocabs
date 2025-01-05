@@ -37,6 +37,7 @@
 		"@tailwindcss/forms": "^0.5.9",
 		"@tailwindcss/typography": "^0.5.15",
 		"compromise": "^14.14.3",
+		"openai": "^4.77.3",
 		"svelte-select": "^5.8.3",
 		"word-definition": "^2.1.6",
 		"word-list": "^4.1.0",

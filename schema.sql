@@ -15,6 +15,7 @@ CREATE TABLE vocabulary_words (
     part_of_speech VARCHAR(50), -- 품사
     meaning TEXT NOT NULL,
     example TEXT,
+    example_translation TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
