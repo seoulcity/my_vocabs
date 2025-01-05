@@ -10,16 +10,20 @@
   import VocabularyTable from '../components/VocabularyTable.svelte';
   import { browser } from '$app/environment';
 
-  const supabase = browser
-    ? createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY
-      )
+  // 환경 변수 체크
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('Required environment variables are missing');
+  }
+
+  const supabase = browser && SUPABASE_URL && SUPABASE_ANON_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
 
   // 로그는 브라우저에서만 출력
-  if (browser) {
-    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+  if (browser && supabase) {
     console.log('Supabase connection initialized');
   }
 
