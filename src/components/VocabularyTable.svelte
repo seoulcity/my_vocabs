@@ -384,7 +384,7 @@
                         class="text-gray-400 hover:text-pink-500 hover:bg-pink-50 p-1.5 rounded-full hidden group-hover:inline-block transition-colors duration-200"
                       >
                         ✏️
-                        <span class="absolute -top-8 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
+                        <span class="absolute top-1/2 -translate-y-1/2 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
                           단어 수정
                         </span>
                       </button>
@@ -400,7 +400,7 @@
                         {:else}
                           {item.example ? '🔄' : '✨'}
                         {/if}
-                        <span class="absolute -top-8 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
+                        <span class="absolute top-1/2 -translate-y-1/2 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
                           {item.example ? '예문 다시 생성' : '예문 생성하기'}
                         </span>
                       </button>
@@ -411,7 +411,7 @@
                         class="text-gray-400 hover:text-pink-500 hover:bg-pink-50 p-1.5 rounded-full hidden group-hover:inline-block transition-colors duration-200"
                       >
                         🗑️
-                        <span class="absolute -top-8 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
+                        <span class="absolute top-1/2 -translate-y-1/2 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
                           단어 삭제
                         </span>
                       </button>
