@@ -77,7 +77,7 @@
     <button
       on:click={generateExample}
       disabled={isLoading}
-      class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-lg text-sm flex items-center justify-center w-full"
+      class="bg-white hover:bg-pink-50 text-pink-600 border-2 border-pink-400 px-4 py-2 rounded-lg text-sm flex items-center justify-center w-full transition-colors duration-200"
     >
       {#if isLoading}
         <span class="animate-spin mr-2">🔄</span> 예문 생성 중...

@@ -70,6 +70,74 @@
     vocabularyLists = data;
   };
 
+  // 단어장 삭제 처리
+  const handleDeleteList = async (id: string) => {
+    if (!browser || !supabase) return;
+
+    const { error } = await supabase
+      .from('vocabulary_lists')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting list:', error);
+      alert('단어장 삭제 중 오류가 발생했습니다.');
+      return;
+    }
+
+    if (selectedListId === id) {
+      selectedListId = null;
+      vocabularyData = [];
+    }
+
+    await loadVocabularyLists();
+  };
+
+  // 단어장 수정 처리
+  const handleEditList = async (updatedList: any) => {
+    if (!browser || !supabase) return;
+
+    const { error } = await supabase
+      .from('vocabulary_lists')
+      .update({
+        title: updatedList.title,
+        description: updatedList.description,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', updatedList.id);
+
+    if (error) {
+      console.error('Error updating list:', error);
+      alert('단어장 수정 중 오류가 발생했습니다.');
+      return;
+    }
+
+    await loadVocabularyLists();
+  };
+
+  // 여러 단어 추가 처리
+  const handleAddWords = async (words: any[]) => {
+    if (!browser || !supabase || !selectedListId) return;
+
+    const wordsToInsert = words.map(word => ({
+      ...word,
+      list_id: selectedListId
+    }));
+
+    const { error } = await supabase
+      .from('vocabulary_words')
+      .insert(wordsToInsert);
+
+    if (error) {
+      console.error('Error adding words:', error);
+      alert('단어 추가 중 오류가 발생했습니다.');
+      return;
+    }
+
+    showNewWordModal = false;
+    await loadVocabularyWords(selectedListId);
+  };
+
   // 선택된 단어장의 단어들 로드
   const loadVocabularyWords = async (listId: string) => {
     if (!browser || !supabase) return;
@@ -217,10 +285,47 @@
     }
   };
 
-  const checkAnswers = () => {
-    scores = quizWords.map(word => ({
-      correct: word.userInput.toLowerCase().trim() === word.answer.toLowerCase().trim()
-    }));
+  const checkAnswers = async () => {
+    try {
+      const results = await Promise.all(
+        quizWords.map(async (word) => {
+          const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`
+            },
+            body: JSON.stringify({
+              model: "gpt-3.5-turbo",
+              messages: [{
+                role: "system",
+                content: "You are a vocabulary test grader. You should compare the user's answer with the correct answer and determine if they are semantically similar enough to be considered correct. Respond with just 'true' for correct or 'false' for incorrect."
+              }, {
+                role: "user",
+                content: `Compare these two meanings and determine if they are semantically similar enough to be considered the same:\nCorrect answer: "${word.answer}"\nUser's answer: "${word.userInput}"`
+              }]
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('GPT API call failed');
+          }
+
+          const data = await response.json();
+          const isCorrect = data.choices[0].message.content.trim().toLowerCase() === 'true';
+
+          return { correct: isCorrect };
+        })
+      );
+
+      scores = results;
+    } catch (error) {
+      console.error('Error checking answers:', error);
+      // GPT API 호출 실패 시 기존 방식으로 채점
+      scores = quizWords.map(word => ({
+        correct: word.userInput.toLowerCase().trim() === word.answer.toLowerCase().trim()
+      }));
+    }
     showResults = true;
   };
 
@@ -255,13 +360,18 @@
       bind:selectedListId
       bind:showNewListModal
       on:select={(event) => loadVocabularyWords(event.detail)}
+      on:delete={event => handleDeleteList(event.detail)}
+      on:edit={event => handleEditList(event.detail)}
     />
 
     <!-- 파일 업로드 섹션 -->
     {#if selectedListId}
       <div class="mb-8">
         <div class="flex justify-between items-center mb-4">
-          <h2 class="text-xl font-bold text-pink-600">📝 단어 관리</h2>
+          <div>
+            <h2 class="text-xl font-bold text-pink-600">📝 단어 관리</h2>
+            <p class="text-sm text-gray-600 mt-1">엑셀 파일로 한 번에 여러 단어를 추가하거나, 직접 입력할 수 있어요!</p>
+          </div>
           <div class="space-x-4">
             <label class="inline-block">
               <span class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm cursor-pointer">
@@ -275,6 +385,12 @@
                 class="hidden"
               />
             </label>
+            <button
+              on:click={() => showNewWordModal = true}
+              class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
+            >
+              ✏️ 직접 입력하기
+            </button>
           </div>
         </div>
       </div>
@@ -285,7 +401,6 @@
       {vocabularyData}
       {headers}
       {selectedListId}
-      bind:showNewWordModal
       on:quiz={generateQuiz}
     />
   </div>
@@ -319,23 +434,7 @@
 <NewWordModal
   show={showNewWordModal}
   on:close={() => showNewWordModal = false}
-  on:add={async (event) => {
-    if (!browser || !supabase) return;
-    if (!selectedListId) return;
-
-    const { error } = await supabase
-      .from('vocabulary_words')
-      .insert([{ ...event.detail, list_id: selectedListId }]);
-
-    if (error) {
-      console.error('Error adding word:', error);
-      alert('단어 추가 중 오류가 발생했습니다.');
-      return;
-    }
-
-    showNewWordModal = false;
-    await loadVocabularyWords(selectedListId);
-  }}
+  on:add={event => handleAddWords(event.detail)}
 />
 
 <QuizModal
@@ -347,7 +446,7 @@
   on:close={closeModal}
   on:next={handleNext}
   on:previous={handlePrevious}
-  on:check={checkAnswers}
+  on:check={async () => await checkAnswers()}
 />
 
 <ColumnMappingModal

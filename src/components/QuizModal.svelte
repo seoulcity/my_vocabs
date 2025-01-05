@@ -36,7 +36,7 @@
     tempInput = quizWords[currentQuizIndex - 1]?.userInput || '';
   }
 
-  function handleCheckAnswers() {
+  async function handleCheckAnswers() {
     // 채점 전에 현재 입력값 저장
     if (tempInput.trim()) {
       quizWords[currentQuizIndex].userInput = tempInput;
@@ -86,7 +86,7 @@
 
 {#if show}
   <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-xl">
+    <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold text-pink-600">🌟 단어 시험</h2>
         <button
@@ -158,26 +158,29 @@
       {:else}
         <div>
           <h3 class="text-xl font-bold mb-6 text-center text-pink-600">✨ 시험 결과 ✨</h3>
-          <div class="space-y-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
             {#each quizWords as word, i}
-              <div class="p-4 rounded-lg {scores[i].correct ? 'bg-green-50 border-2 border-green-100' : 'bg-pink-50 border-2 border-pink-100'}">
-                <p class="font-bold text-gray-800">{word.word}</p>
-                <div class="mt-2 text-sm">
-                  <p>
-                    나의 답: <span class={scores[i].correct ? 'text-green-600 font-medium' : 'text-pink-600'}>{word.userInput}</span>
-                  </p>
+              <div class="p-3 rounded-lg {scores[i].correct ? 'bg-green-50 border border-green-200' : 'bg-pink-50 border border-pink-200'}">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-gray-800">{word.word}</span>
+                  <span class={scores[i].correct ? 'text-green-600' : 'text-pink-600'}>
+                    {scores[i].correct ? '⭕' : '❌'}
+                  </span>
+                </div>
+                <div class="text-sm mt-1">
+                  <p class="text-gray-600">답: {word.userInput || '미입력'}</p>
                   {#if !scores[i].correct}
-                    <p class="text-gray-600">정답: {word.answer}</p>
+                    <p class="text-gray-500 text-xs mt-1">정답: {word.answer}</p>
                   {/if}
                 </div>
               </div>
             {/each}
           </div>
-          <div class="mt-6 text-center">
+          <div class="text-center space-y-4">
             <p class="text-2xl font-bold text-pink-600">
               총점: {scores.filter(s => s.correct).length} / {scores.length}
             </p>
-            <p class="mt-2 text-gray-600">
+            <p class="text-gray-600">
               {#if scores.filter(s => s.correct).length === scores.length}
                 🎉 완벽해요! 정말 잘했어요! 🎉
               {:else if scores.filter(s => s.correct).length >= scores.length * 0.7}
