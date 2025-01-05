@@ -58,6 +58,8 @@
     example: ''
   };
 
+  let quizTitle = '단어 시험';
+
   onMount(async () => {
     await loadGroups();
     await loadVocabularyLists();
@@ -185,6 +187,35 @@
 
   const generateQuiz = () => {
     if (vocabularyData.length === 0) return;
+    quizTitle = selectedList ? `${selectedList.title} - 단어 시험` : '단어 시험';
+    showModal = true;
+  };
+
+  const generateGroupQuiz = async (event: CustomEvent<any>) => {
+    const group = event.detail;
+    
+    // 그룹 내의 모든 단어장에서 단어 로드
+    const { data, error } = await supabase
+      .from('vocabulary_words')
+      .select('*')
+      .in('list_id', vocabularyLists
+        .filter(list => list.group_id === group.id)
+        .map(list => list.id)
+      );
+
+    if (error) {
+      console.error('Error loading group words:', error);
+      alert('단어 로드 중 오류가 발생했습니다.');
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      alert('퀴즈를 생성할 단어가 없습니다.');
+      return;
+    }
+
+    vocabularyData = data;
+    quizTitle = `${group.title} - 그룹 단어 시험`;
     showModal = true;
   };
 
@@ -507,6 +538,7 @@
         on:edit={handleEditList}
         on:newGroup={() => showNewGroupModal = true}
         on:newList={() => showNewListModal = true}
+        on:groupQuiz={generateGroupQuiz}
       />
     </div>
 
@@ -565,6 +597,7 @@
   {currentQuizIndex}
   {showResults}
   {scores}
+  {quizTitle}
   on:close={closeModal}
   on:next={handleNext}
   on:previous={handlePrevious}

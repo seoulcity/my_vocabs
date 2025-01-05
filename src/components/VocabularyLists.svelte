@@ -568,8 +568,20 @@
                 <i class="fas fa-chevron-right text-gray-400"></i>
               </span>
               <div class="flex-1">
-                <div class="flex items-center">
-                  <h3 class="font-bold text-gray-800">{group.title}</h3>
+                <div class="flex items-center justify-between">
+                  <div class="flex-1 min-w-0">
+                    <h3 class="font-bold text-gray-800 truncate">{group.title}</h3>
+                  </div>
+                  {#if vocabularyLists.filter(list => list.group_id === group.id).length > 0}
+                    <button
+                      on:click|stopPropagation={() => dispatch('groupQuiz', group)}
+                      class="ml-3 bg-white hover:bg-pink-50 text-pink-600 border border-pink-400 px-4 py-1 rounded-full text-xs transition-colors duration-200 flex items-center min-w-[90px] justify-center flex-shrink-0"
+                      title="그룹 전체 퀴즈"
+                    >
+                      <i class="fas fa-graduation-cap mr-1"></i>
+                      그룹 퀴즈
+                    </button>
+                  {/if}
                 </div>
                 {#if group.description}
                   <p class="text-sm text-gray-600 mt-1">{group.description}</p>

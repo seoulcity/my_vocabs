@@ -15,6 +15,7 @@
   export let currentQuizIndex = 0;
   export let showResults = false;
   export let scores: { correct: boolean; explanation?: string }[] = [];
+  export let quizTitle = '단어 시험';
   
   const dispatch = createEventDispatcher();
   
@@ -244,7 +245,9 @@
   <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-pink-600">🌟 단어 시험</h2>
+        <h2 class="text-2xl font-bold text-pink-600">
+          <i class="fas fa-graduation-cap mr-2"></i>{quizTitle}
+        </h2>
         <button
           on:click={handleClose}
           class="text-pink-400 hover:text-pink-600 text-xl"
