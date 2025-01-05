@@ -1,9 +1,15 @@
 import OpenAI from 'openai';
+import { browser } from '$app/environment';
 
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+const OPENAI_API_KEY = browser ? import.meta.env.VITE_OPENAI_API_KEY : undefined;
 
-if (!OPENAI_API_KEY) {
-    console.error('OpenAI API key is missing. Please check your environment variables.');
+if (browser) {
+    if (!OPENAI_API_KEY) {
+        console.error('OpenAI API key is missing. Please check your environment variables.');
+        console.log('Available env vars:', import.meta.env);
+    } else {
+        console.log('OpenAI API key is configured');
+    }
 }
 
 // OpenAI 클라이언트 인스턴스 생성
