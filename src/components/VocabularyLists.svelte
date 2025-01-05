@@ -22,6 +22,7 @@
   let expandedGroups: Set<string> = new Set();
   let movingList: any = null;
   let showMoveModal = false;
+  let initialized = false;
 
   async function loadGroups() {
     if (!supabase) return;
@@ -60,13 +61,25 @@
     }
   }
 
-  // 컴포넌트 마운트 시 그룹 로드
+  // 컴포넌트 마운트 시 초기화
   onMount(() => {
     window.addEventListener('keydown', handleKeydown);
+    initializeGroups();
     return () => {
       window.removeEventListener('keydown', handleKeydown);
     };
   });
+
+  // 그룹 초기화
+  async function initializeGroups() {
+    if (initialized) return;
+    await loadGroups();
+    if (groups.length > 0) {
+      expandedGroups.add(groups[0].id);
+      expandedGroups = expandedGroups; // trigger reactivity
+    }
+    initialized = true;
+  }
 
   function handleNewList() {
     dispatch('newList');

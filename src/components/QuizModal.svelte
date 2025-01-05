@@ -11,14 +11,23 @@
   
   const dispatch = createEventDispatcher();
   
-  // 임시 입력값을 저장할 변수
   let tempInput = '';
   let isComposing = false;
   let isFocused = false;
   let isChecking = false;
+  let quizCount = 5;
+  let showQuizSetup = true;
+  let showSubmitConfirm = false;
 
   function handleClose() {
     dispatch('close');
+    showQuizSetup = true;
+    showSubmitConfirm = false;
+  }
+
+  function startQuiz() {
+    showQuizSetup = false;
+    dispatch('updateCount', quizCount);
   }
 
   function handleNext() {
@@ -37,6 +46,11 @@
     dispatch('previous');
     // 이전 문제로 돌아갈 때 임시 입력값 초기화
     tempInput = quizWords[currentQuizIndex - 1]?.userInput || '';
+  }
+
+  function handleSubmitConfirm() {
+    showSubmitConfirm = false;
+    handleCheckAnswers();
   }
 
   async function checkAnswer(word: string, userAnswer: string, correctAnswer: string) {
@@ -139,7 +153,7 @@
       if (currentQuizIndex < quizWords.length - 1) {
         handleNext();
       } else {
-        handleCheckAnswers();
+        showSubmitConfirm = true;
       }
     }
   }
@@ -186,7 +200,31 @@
         </button>
       </div>
 
-      {#if !showResults}
+      {#if showQuizSetup}
+        <div class="space-y-6">
+          <div class="text-center">
+            <p class="text-lg text-gray-700 mb-4">몇 개의 문제를 푸시겠습니까?</p>
+            <div class="grid grid-cols-3 gap-3 max-w-md mx-auto">
+              {#each [5, 10, 15, 20, 25, 30] as count}
+                <button
+                  class="px-6 py-3 rounded-full {quizCount === count ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+                  on:click={() => quizCount = count}
+                >
+                  {count}개
+                </button>
+              {/each}
+            </div>
+          </div>
+          <div class="flex justify-center mt-6">
+            <button
+              on:click={startQuiz}
+              class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full"
+            >
+              시험 시작하기 ✨
+            </button>
+          </div>
+        </div>
+      {:else if !showResults}
         <div class="space-y-6">
           <div class="text-center">
             <p class="text-lg text-pink-600 font-medium mb-2">
@@ -229,7 +267,7 @@
             
             {#if currentQuizIndex === quizWords.length - 1}
               <button
-                on:click={handleCheckAnswers}
+                on:click={() => showSubmitConfirm = true}
                 disabled={isChecking}
                 class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full disabled:opacity-50"
               >
@@ -291,4 +329,30 @@
       {/if}
     </div>
   </div>
+
+  {#if showSubmitConfirm}
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style="z-index: 60;">
+      <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl text-center">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">시험을 제출하시겠습니까?</h3>
+        <p class="text-gray-600 mb-6">
+          모든 문제에 답변을 완료하셨나요?<br>
+          제출하면 수정할 수 없습니다.
+        </p>
+        <div class="flex justify-center space-x-4">
+          <button
+            on:click={() => showSubmitConfirm = false}
+            class="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full"
+          >
+            돌아가기
+          </button>
+          <button
+            on:click={handleSubmitConfirm}
+            class="px-6 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-full"
+          >
+            제출하기
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 {/if}

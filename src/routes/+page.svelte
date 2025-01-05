@@ -323,10 +323,14 @@
 
   const generateQuiz = () => {
     if (vocabularyData.length === 0) return;
+    showModal = true;
+  };
 
+  const updateQuizCount = (event: CustomEvent<number>) => {
+    const count = event.detail;
     const shuffled = [...vocabularyData]
       .sort(() => Math.random() - 0.5)
-      .slice(0, 10)
+      .slice(0, count)
       .map(item => ({
         word: item.word,
         answer: item.meaning,
@@ -337,7 +341,6 @@
     currentQuizIndex = 0;
     showResults = false;
     scores = [];
-    showModal = true;
   };
 
   const handleNext = () => {
@@ -406,12 +409,17 @@
           console.error('Error saving quiz history:', quizError);
         } else {
           // 개별 답안 저장
-          const quizAnswers = quizWords.map((word, index) => ({
-            quiz_id: quizData.id,
-            user_answer: word.userInput,
-            is_correct: results[index].correct,
-            explanation: results[index].explanation
-          }));
+          const quizAnswers = quizWords.map((word, index) => {
+            // 단어 ID 찾기
+            const vocabularyWord = vocabularyData.find(v => v.word === word.word);
+            return {
+              quiz_id: quizData.id,
+              word_id: vocabularyWord?.id, // 단어 ID 추가
+              user_answer: word.userInput,
+              is_correct: results[index].correct,
+              explanation: results[index].explanation
+            };
+          });
 
           const { error: answersError } = await supabase
             .from('quiz_answers')
@@ -555,6 +563,7 @@
   on:next={handleNext}
   on:previous={handlePrevious}
   on:check={async () => await checkAnswers()}
+  on:updateCount={updateQuizCount}
 />
 
 <ColumnMappingModal

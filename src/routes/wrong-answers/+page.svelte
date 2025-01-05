@@ -35,6 +35,7 @@
     vocabulary_words: {
       word: string;
       meaning: string;
+      part_of_speech: string;
     };
   };
 
@@ -42,8 +43,15 @@
   let wrongAnswers: Record<string, QuizAnswer[]> = {};
   let selectedQuizId: string | null = null;
   let isLoading = true;
+  let showOnlyIncorrect = true;
+  let showDeleteConfirm = false;
+  let quizToDelete: string | null = null;
 
   onMount(async () => {
+    await loadQuizHistory();
+  });
+
+  async function loadQuizHistory() {
     if (!browser || !supabase) return;
 
     try {
@@ -68,7 +76,8 @@
           *,
           vocabulary_words (
             word,
-            meaning
+            meaning,
+            part_of_speech
           )
         `)
         .eq('is_correct', false);
@@ -88,7 +97,35 @@
     } finally {
       isLoading = false;
     }
-  });
+  }
+
+  async function handleDeleteQuiz() {
+    if (!quizToDelete || !supabase) return;
+
+    try {
+      // quiz_answers는 CASCADE로 자동 삭제됨
+      const { error } = await supabase
+        .from('quiz_history')
+        .delete()
+        .eq('id', quizToDelete);
+
+      if (error) throw error;
+
+      // UI 업데이트
+      quizHistory = quizHistory.filter(quiz => quiz.id !== quizToDelete);
+      delete wrongAnswers[quizToDelete];
+      
+      if (selectedQuizId === quizToDelete) {
+        selectedQuizId = null;
+      }
+
+      showDeleteConfirm = false;
+      quizToDelete = null;
+    } catch (error) {
+      console.error('Error deleting quiz:', error);
+      alert('시험 기록 삭제 중 오류가 발생했습니다.');
+    }
+  }
 
   function formatDate(dateString: string) {
     return new Date(dateString).toLocaleString('ko-KR', {
@@ -99,6 +136,8 @@
       minute: '2-digit'
     });
   }
+
+  $: filteredAnswers = wrongAnswers[selectedQuizId] || [];
 </script>
 
 <div class="min-h-screen bg-pink-50 py-12">
@@ -122,8 +161,8 @@
           <h2 class="text-xl font-bold mb-4 text-pink-600">시험 기록</h2>
           <div class="space-y-4">
             {#each quizHistory as quiz}
-              <button
-                class="w-full text-left p-4 rounded-lg border-2 transition-colors duration-200
+              <div
+                class="relative w-full text-left p-4 rounded-lg border-2 transition-colors duration-200 cursor-pointer group
                   {selectedQuizId === quiz.id
                     ? 'border-pink-500 bg-pink-50'
                     : 'border-gray-200 hover:border-pink-300 hover:bg-pink-50'}"
@@ -145,33 +184,60 @@
                     </p>
                   </div>
                 </div>
-              </button>
+                <button
+                  class="absolute top-2 right-2 p-2 text-gray-400 hover:text-pink-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                  on:click|stopPropagation={() => {
+                    quizToDelete = quiz.id;
+                    showDeleteConfirm = true;
+                  }}
+                  title="시험 기록 삭제"
+                >
+                  🗑️
+                </button>
+              </div>
             {/each}
           </div>
         </div>
 
         <!-- 틀린 답안 목록 -->
         <div class="bg-white rounded-lg shadow-md p-6">
-          <h2 class="text-xl font-bold mb-4 text-pink-600">틀린 답안</h2>
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-pink-600">틀린 답안</h2>
+            {#if filteredAnswers.length > 0}
+              <div class="text-sm text-gray-600">
+                총 {filteredAnswers.length}개의 틀린 답안
+              </div>
+            {/if}
+          </div>
+
           {#if !selectedQuizId}
             <p class="text-center text-gray-600">
               시험을 선택하면 틀린 답안을 볼 수 있습니다.
             </p>
-          {:else if !wrongAnswers[selectedQuizId] || wrongAnswers[selectedQuizId].length === 0}
+          {:else if filteredAnswers.length === 0}
             <p class="text-center text-gray-600">
               이 시험에서는 틀린 답안이 없습니다! 🎉
             </p>
           {:else}
             <div class="space-y-4">
-              {#each wrongAnswers[selectedQuizId] as answer}
+              {#each filteredAnswers as answer}
                 <div class="p-4 rounded-lg bg-pink-50 border border-pink-200">
                   <div class="flex justify-between items-start">
                     <div class="flex-1">
-                      <p class="font-bold text-gray-800">{answer.vocabulary_words.word}</p>
-                      <p class="text-sm text-gray-600 mt-1">정답: {answer.vocabulary_words.meaning}</p>
+                      <div class="flex items-center gap-2">
+                        <p class="font-bold text-gray-800">{answer.vocabulary_words.word}</p>
+                        {#if answer.vocabulary_words.part_of_speech}
+                          <span class="text-xs px-2 py-1 bg-pink-100 text-pink-600 rounded-full">
+                            {answer.vocabulary_words.part_of_speech}
+                          </span>
+                        {/if}
+                      </div>
+                      <p class="text-sm text-gray-600 mt-2">정답: {answer.vocabulary_words.meaning}</p>
                       <p class="text-sm text-pink-600 mt-1">내 답: {answer.user_answer}</p>
                       {#if answer.explanation}
-                        <p class="text-xs text-gray-500 mt-2">{answer.explanation}</p>
+                        <p class="text-xs text-gray-500 mt-2 bg-white p-2 rounded-lg">
+                          💡 {answer.explanation}
+                        </p>
                       {/if}
                     </div>
                   </div>
@@ -184,6 +250,34 @@
     {/if}
   </div>
 </div>
+
+{#if showDeleteConfirm}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl text-center">
+      <h3 class="text-xl font-bold mb-4 text-gray-800">시험 기록을 삭제하시겠습니까?</h3>
+      <p class="text-gray-600 mb-6">
+        이 작업은 되돌릴 수 없으며, 관련된 모든 답안 기록도 함께 삭제됩니다.
+      </p>
+      <div class="flex justify-center space-x-4">
+        <button
+          on:click={() => {
+            showDeleteConfirm = false;
+            quizToDelete = null;
+          }}
+          class="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full"
+        >
+          취소
+        </button>
+        <button
+          on:click={handleDeleteQuiz}
+          class="px-6 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-full"
+        >
+          삭제
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .container {
