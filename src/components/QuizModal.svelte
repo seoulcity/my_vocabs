@@ -50,7 +50,8 @@
 
   function handleSubmitConfirm() {
     showSubmitConfirm = false;
-    handleCheckAnswers();
+    isChecking = true;
+    dispatch('check');
   }
 
   async function checkAnswer(word: string, userAnswer: string, correctAnswer: string) {
@@ -170,6 +171,9 @@
   $: {
     if (show && !showResults) {
       tempInput = quizWords[currentQuizIndex]?.userInput || '';
+    }
+    if (showResults) {
+      isChecking = false;
     }
   }
 
@@ -292,21 +296,27 @@
           <h3 class="text-xl font-bold mb-6 text-center text-pink-600">✨ 시험 결과 ✨</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
             {#each quizWords as word, i}
-              <div class="p-3 rounded-lg {scores[i].correct ? 'bg-green-50 border border-green-200' : 'bg-pink-50 border border-pink-200'}">
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-gray-800">{word.word}</span>
-                  <span class={scores[i].correct ? 'text-green-600' : 'text-pink-600'}>
-                    {scores[i].correct ? '⭕' : '❌'}
-                  </span>
-                </div>
-                <div class="text-sm mt-1">
-                  <p class="text-gray-600">답: {word.userInput || '미입력'}</p>
-                  {#if !scores[i].correct}
-                    <p class="text-gray-500 text-xs mt-1">정답: {word.answer}</p>
-                  {/if}
-                  {#if scores[i].explanation}
-                    <p class="text-gray-500 text-xs mt-1 italic">{scores[i].explanation}</p>
-                  {/if}
+              <div class="p-4 rounded-lg {scores[i].correct ? 'bg-green-50 border border-green-200' : 'bg-pink-50 border border-pink-200'}">
+                <div class="flex justify-between items-start">
+                  <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                      <p class="font-bold text-gray-800">{word.word}</p>
+                      <span class={scores[i].correct ? 'text-green-600' : 'text-pink-600'}>
+                        {scores[i].correct ? '⭕' : '❌'}
+                      </span>
+                    </div>
+                    <div class="mt-2 space-y-1">
+                      <p class="text-sm text-gray-600">내 답: {word.userInput || '미입력'}</p>
+                      {#if !scores[i].correct}
+                        <p class="text-sm text-pink-600 font-medium">정답: {word.answer}</p>
+                      {/if}
+                      {#if scores[i].explanation}
+                        <p class="text-xs text-gray-500 mt-2 bg-white p-2 rounded-lg">
+                          💡 {scores[i].explanation}
+                        </p>
+                      {/if}
+                    </div>
+                  </div>
                 </div>
               </div>
             {/each}

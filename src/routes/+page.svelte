@@ -395,6 +395,12 @@
 
       // 퀴즈 결과 저장
       if (browser && supabase) {
+        console.log('Saving quiz results...', {
+          listId: selectedListId,
+          score: results.filter(r => r.correct).length,
+          total: results.length
+        });
+
         const { data: quizData, error: quizError } = await supabase
           .from('quiz_history')
           .insert([{
@@ -408,18 +414,29 @@
         if (quizError) {
           console.error('Error saving quiz history:', quizError);
         } else {
+          console.log('Quiz history saved successfully:', quizData);
+          
           // 개별 답안 저장
           const quizAnswers = quizWords.map((word, index) => {
             // 단어 ID 찾기
             const vocabularyWord = vocabularyData.find(v => v.word === word.word);
+            console.log('Mapping answer for word:', {
+              word: word.word,
+              vocabularyWord,
+              userAnswer: word.userInput,
+              isCorrect: results[index].correct
+            });
+            
             return {
               quiz_id: quizData.id,
-              word_id: vocabularyWord?.id, // 단어 ID 추가
+              word_id: vocabularyWord?.id,
               user_answer: word.userInput,
               is_correct: results[index].correct,
               explanation: results[index].explanation
             };
           });
+
+          console.log('Saving quiz answers:', quizAnswers);
 
           const { error: answersError } = await supabase
             .from('quiz_answers')
@@ -562,7 +579,7 @@
   on:close={closeModal}
   on:next={handleNext}
   on:previous={handlePrevious}
-  on:check={async () => await checkAnswers()}
+  on:check={checkAnswers}
   on:updateCount={updateQuizCount}
 />
 
