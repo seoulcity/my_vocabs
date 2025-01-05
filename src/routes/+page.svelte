@@ -8,14 +8,20 @@
   import ColumnMappingModal from '../components/ColumnMappingModal.svelte';
   import VocabularyLists from '../components/VocabularyLists.svelte';
   import VocabularyTable from '../components/VocabularyTable.svelte';
+  import { browser } from '$app/environment';
 
-  const supabase = createClient(
-    import.meta.env.VITE_SUPABASE_URL,
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-  );
+  const supabase = browser
+    ? createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY
+      )
+    : null;
 
-  console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-  console.log('Supabase connection initialized');
+  // 로그는 브라우저에서만 출력
+  if (browser) {
+    console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+    console.log('Supabase connection initialized');
+  }
 
   let fileInput: HTMLInputElement;
   let vocabularyData: Record<string, any>[] = [];
@@ -43,6 +49,8 @@
 
   // 단어장 목록 로드
   const loadVocabularyLists = async () => {
+    if (!browser || !supabase) return;
+    
     console.log('Loading vocabulary lists...');
     const { data, error } = await supabase
       .from('vocabulary_lists')
@@ -60,6 +68,8 @@
 
   // 선택된 단어장의 단어들 로드
   const loadVocabularyWords = async (listId: string) => {
+    if (!browser || !supabase) return;
+
     const { data, error } = await supabase
       .from('vocabulary_words')
       .select('*')
@@ -76,7 +86,9 @@
   };
 
   onMount(() => {
-    loadVocabularyLists();
+    if (browser) {
+      loadVocabularyLists();
+    }
   });
 
   const handleFileUpload = async (event: Event) => {
@@ -114,6 +126,8 @@
 
   // 데이터베이스에 단어장 저장
   const saveVocabularyList = async () => {
+    if (!browser || !supabase) return;
+    
     try {
       if (!selectedListId) return;
 
@@ -146,6 +160,8 @@
 
   // 단어장 목록 로드
   const loadVocabularyList = async () => {
+    if (!browser || !supabase) return;
+
     const { data, error } = await supabase
       .from('vocabulary_words')
       .select(`
@@ -276,6 +292,8 @@
   show={showNewListModal}
   on:close={() => showNewListModal = false}
   on:create={async (event) => {
+    if (!browser || !supabase) return;
+
     const { data, error } = await supabase
       .from('vocabulary_lists')
       .insert([event.detail])
@@ -298,6 +316,7 @@
   show={showNewWordModal}
   on:close={() => showNewWordModal = false}
   on:add={async (event) => {
+    if (!browser || !supabase) return;
     if (!selectedListId) return;
 
     const { error } = await supabase
