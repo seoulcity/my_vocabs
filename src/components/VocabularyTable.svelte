@@ -207,6 +207,24 @@
       alert('단어 수정 중 오류가 발생했습니다.');
     }
   }
+
+  async function handleDeleteWord(wordId: string) {
+    if (!confirm('정말로 이 단어를 삭제하시겠습니까?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('vocabulary_words')
+        .delete()
+        .eq('id', wordId);
+
+      if (error) throw error;
+
+      vocabularyData = vocabularyData.filter(item => item.id !== wordId);
+    } catch (error) {
+      console.error('Error deleting word:', error);
+      alert('단어 삭제 중 오류가 발생했습니다.');
+    }
+  }
 </script>
 
 <div class="bg-white rounded-lg shadow-sm p-6">
@@ -265,16 +283,17 @@
 
       <!-- Table -->
       <div class="overflow-x-auto">
-        <table class="min-w-full">
-          <thead>
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
             <tr>
-              <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">단어</th>
-              <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">품사</th>
-              <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">의미</th>
-              <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">예문</th>
+              <th class="w-[25%] px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">단어</th>
+              <th class="w-[20%] px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">품사</th>
+              <th class="w-[25%] px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">의미</th>
+              <th class="w-[20%] px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">예문</th>
+              <th class="w-[10%] px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody class="bg-white divide-y divide-gray-200">
             {#each paginatedData as item}
               <tr class="border-t hover:bg-pink-50 group">
                 {#if editingWord?.id === item.id}
@@ -318,21 +337,14 @@
                     </button>
                   </td>
                 {:else}
-                  <td class="px-4 py-3 relative">
+                  <td class="px-4 py-3">
                     {item.word}
-                    <button
-                      on:click={() => handleEditWord(item)}
-                      class="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:block text-gray-400 hover:text-pink-500"
-                      title="단어 수정"
-                    >
-                      ✏️
-                    </button>
                   </td>
                   <td class="px-4 py-3 text-gray-600">{item.part_of_speech || '-'}</td>
                   <td class="px-4 py-3">{item.meaning}</td>
                   <td class="px-4 py-3 text-gray-600">
                     {#if item.example}
-                      <div class="flex items-start justify-between group min-h-[4rem] relative">
+                      <div class="flex items-start justify-between min-h-[4rem]">
                         <div class="flex-1">
                           <p class="text-gray-800">{item.example}</p>
                           <button
@@ -345,31 +357,9 @@
                             <p class="text-gray-600 mt-1">{item.example_translation}</p>
                           {/if}
                         </div>
-                        <button
-                          on:click={() => generateExample(item.word)}
-                          class="hidden group-hover:block text-pink-500 hover:text-pink-600 text-sm ml-2 absolute top-0 right-0"
-                          disabled={generatingExampleFor === item.word}
-                        >
-                          {#if generatingExampleFor === item.word}
-                            <span class="animate-spin inline-block">🔄</span>
-                          {:else}
-                            🔄 다시 생성
-                          {/if}
-                        </button>
                       </div>
                     {:else}
-                      <div class="min-h-[4rem] relative">
-                        <button
-                          on:click={() => generateExample(item.word)}
-                          class="hidden group-hover:block text-pink-500 hover:text-pink-600 text-sm absolute top-0 right-0"
-                          disabled={generatingExampleFor === item.word}
-                        >
-                          {#if generatingExampleFor === item.word}
-                            <span class="animate-spin inline-block">🔄</span> 생성 중...
-                          {:else}
-                            ✨ 예문 생성하기
-                          {/if}
-                        </button>
+                      <div class="min-h-[4rem]">
                         {#if examples.has(item.word)}
                           <div class="mt-2">
                             <p class="text-gray-800">{examples.get(item.word).english}</p>
@@ -386,6 +376,46 @@
                         {/if}
                       </div>
                     {/if}
+                  </td>
+                  <td class="px-4 py-3 text-right space-x-2">
+                    <div class="relative inline-block group/tooltip">
+                      <button
+                        on:click={() => handleEditWord(item)}
+                        class="text-gray-400 hover:text-pink-500 hover:bg-pink-50 p-1.5 rounded-full hidden group-hover:inline-block transition-colors duration-200"
+                      >
+                        ✏️
+                        <span class="absolute -top-8 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
+                          단어 수정
+                        </span>
+                      </button>
+                    </div>
+                    <div class="relative inline-block group/tooltip">
+                      <button
+                        on:click={() => generateExample(item.word)}
+                        class="text-gray-400 hover:text-pink-500 hover:bg-pink-50 p-1.5 rounded-full hidden group-hover:inline-block transition-colors duration-200"
+                        disabled={generatingExampleFor === item.word}
+                      >
+                        {#if generatingExampleFor === item.word}
+                          <span class="animate-spin inline-block">🔄</span>
+                        {:else}
+                          {item.example ? '🔄' : '✨'}
+                        {/if}
+                        <span class="absolute -top-8 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
+                          {item.example ? '예문 다시 생성' : '예문 생성하기'}
+                        </span>
+                      </button>
+                    </div>
+                    <div class="relative inline-block group/tooltip">
+                      <button
+                        on:click={() => handleDeleteWord(item.id)}
+                        class="text-gray-400 hover:text-pink-500 hover:bg-pink-50 p-1.5 rounded-full hidden group-hover:inline-block transition-colors duration-200"
+                      >
+                        🗑️
+                        <span class="absolute -top-8 right-full mr-1 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none">
+                          단어 삭제
+                        </span>
+                      </button>
+                    </div>
                   </td>
                 {/if}
               </tr>

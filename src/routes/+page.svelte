@@ -11,9 +11,8 @@
   import VocabularyTable from '../components/VocabularyTable.svelte';
   import { browser } from '$app/environment';
   import NewGroupModal from '../components/NewGroupModal.svelte';
-  import StudyCalendar from '../components/StudyCalendar.svelte';
-  import DashboardLearningStatus from '../components/DashboardLearningStatus.svelte';
-  import DashboardQuizStats from '../components/DashboardQuizStats.svelte';
+  import VocabularyManager from '../components/VocabularyManager.svelte';
+  import Dashboard from '../components/Dashboard.svelte';
 
   // 환경 변수 체크
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -59,270 +58,9 @@
     example: ''
   };
 
-  // 대시보드 데이터 타입 정의
-  type DashboardStats = {
-    recentWords: {
-      count: number;
-      trend: number;
-    };
-    quizStats: {
-      totalQuizzes: number;
-      totalWords: number;
-      averageScore: number;
-      scoresTrend: number[];
-    };
-    totalStats: {
-      totalWords: number;
-      totalLists: number;
-      studyDays: number;
-    };
-    studyDates: Date[];
-  };
-
-  let dashboardStats: DashboardStats | null = null;
-
-  // 대시보드 데이터 로드
-  async function loadDashboardStats() {
-    if (!browser || !supabase) return;
-
-    try {
-      // 1. 최근 7일간 추가된 단어 수
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const fourteenDaysAgo = new Date();
-      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-      const { data: recentWords, error: recentWordsError } = await supabase
-        .from('vocabulary_words')
-        .select('created_at')
-        .gte('created_at', sevenDaysAgo.toISOString());
-
-      const { data: previousWords, error: previousWordsError } = await supabase
-        .from('vocabulary_words')
-        .select('created_at')
-        .gte('created_at', fourteenDaysAgo.toISOString())
-        .lt('created_at', sevenDaysAgo.toISOString());
-
-      // 2. 퀴즈 통계
-      const { data: quizzes, error: quizzesError } = await supabase
-        .from('quiz_history')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      // 3. 전체 통계
-      const { data: totalWords, error: totalWordsError } = await supabase
-        .from('vocabulary_words')
-        .select('created_at');
-
-      const { data: totalLists, error: totalListsError } = await supabase
-        .from('vocabulary_lists')
-        .select('id');
-
-      if (recentWordsError || previousWordsError || quizzesError || totalWordsError || totalListsError) {
-        throw new Error('Error loading dashboard stats');
-      }
-
-      // 학습일 계산 (단어 추가 또는 퀴즈를 푼 날짜의 unique 개수)
-      const studyDates = new Set<string>();
-      const allStudyDates: Date[] = [];
-      
-      totalWords?.forEach(word => {
-        const date = new Date(word.created_at);
-        const dateString = date.toDateString();
-        if (!studyDates.has(dateString)) {
-          studyDates.add(dateString);
-          allStudyDates.push(date);
-        }
-      });
-      
-      quizzes?.forEach(quiz => {
-        const date = new Date(quiz.created_at);
-        const dateString = date.toDateString();
-        if (!studyDates.has(dateString)) {
-          studyDates.add(dateString);
-          allStudyDates.push(date);
-        }
-      });
-
-      // 퀴즈 점수 계산
-      const quizScores = quizzes?.map(quiz => (quiz.score / quiz.total_questions) * 100) || [];
-      const averageScore = quizScores.length > 0
-        ? quizScores.reduce((a, b) => a + b, 0) / quizScores.length
-        : 0;
-
-      dashboardStats = {
-        recentWords: {
-          count: recentWords?.length || 0,
-          trend: previousWords?.length
-            ? ((recentWords?.length || 0) - previousWords.length) / previousWords.length * 100
-            : 0
-        },
-        quizStats: {
-          totalQuizzes: quizzes?.length || 0,
-          totalWords: quizzes?.reduce((sum, quiz) => sum + quiz.total_questions, 0) || 0,
-          averageScore,
-          scoresTrend: quizScores.reverse()
-        },
-        totalStats: {
-          totalWords: totalWords?.length || 0,
-          totalLists: totalLists?.length || 0,
-          studyDays: studyDates.size
-        },
-        studyDates: allStudyDates
-      };
-
-      console.log('Dashboard stats:', dashboardStats);
-    } catch (error) {
-      console.error('Error loading dashboard stats:', error);
-    }
-  }
-
-  // 단어장 목록 로드
-  const loadVocabularyLists = async () => {
-    if (!browser || !supabase) return;
-    
-    console.log('Loading vocabulary lists...');
-    const { data, error } = await supabase
-      .from('vocabulary_lists')
-      .select(`
-        *,
-        vocabulary_groups (
-          id,
-          title,
-          description
-        ),
-        vocabulary_words (count)
-      `)
-      .order('display_order', { ascending: true });
-
-    if (error) {
-      console.error('Error loading vocabulary lists:', error);
-      return;
-    }
-
-    vocabularyLists = data.map(list => ({
-      ...list,
-      word_count: list.vocabulary_words[0]?.count || 0
-    }));
-    vocabularyLists = [...vocabularyLists];
-  };
-
-  // 단어장 삭제 처리
-  const handleDeleteList = async (event: CustomEvent<string>) => {
-    const listId = event.detail;
-    if (!confirm('정말로 이 단어장을 삭제하시겠습니까?')) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from('vocabulary_lists')
-      .delete()
-      .eq('id', listId);
-
-    if (error) {
-      console.error('Error deleting list:', error);
-      alert('단어장 삭제 중 오류가 발생했습니다.');
-      return;
-    }
-
-    vocabularyLists = vocabularyLists.filter(list => list.id !== listId);
-    if (selectedListId === listId) {
-      selectedListId = null;
-      selectedList = null;
-    }
-  };
-
-  // 단어장 수정 처리
-  const handleEditList = async (event: CustomEvent<any>) => {
-    const updatedList = event.detail;
-    const { error } = await supabase
-      .from('vocabulary_lists')
-      .update({
-        title: updatedList.title,
-        description: updatedList.description,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', updatedList.id);
-
-    if (error) {
-      console.error('Error updating list:', error);
-      alert('단어장 수정 중 오류가 발생했습니다.');
-      return;
-    }
-
-    vocabularyLists = vocabularyLists.map(list =>
-      list.id === updatedList.id ? { ...list, ...updatedList } : list
-    );
-  };
-
-  // 여러 단어 추가 처리
-  const handleAddWords = async (words: any[]) => {
-    if (!browser || !supabase || !selectedListId) return;
-
-    const wordsToInsert = words.map(word => ({
-      ...word,
-      list_id: selectedListId
-    }));
-
-    const { error } = await supabase
-      .from('vocabulary_words')
-      .insert(wordsToInsert);
-
-    if (error) {
-      console.error('Error adding words:', error);
-      alert('단어 추가 중 오류가 발생했습니다.');
-      return;
-    }
-
-    showNewWordModal = false;
-    await loadVocabularyWords(selectedListId);
-  };
-
-  // 선택된 단어장의 단어들 로드
-  const loadVocabularyWords = async (listId: string) => {
-    if (!browser || !supabase) return;
-
-    // 단어장 정보 로드
-    const { data: listData, error: listError } = await supabase
-      .from('vocabulary_lists')
-      .select(`
-        *,
-        vocabulary_groups (
-          id,
-          title
-        )
-      `)
-      .eq('id', listId)
-      .single();
-
-    if (listError) {
-      console.error('Error loading list:', listError);
-      return;
-    }
-
-    selectedList = listData;
-
-    // 단어 목록 로드
-    const { data, error } = await supabase
-      .from('vocabulary_words')
-      .select('*')
-      .eq('list_id', listId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.error('Error loading words:', error);
-      return;
-    }
-
-    vocabularyData = data;
-    headers = ['word', 'part_of_speech', 'meaning', 'example'];
-  };
-
   onMount(async () => {
     await loadGroups();
     await loadVocabularyLists();
-    await loadDashboardStats();
   });
 
   async function loadGroups() {
@@ -605,90 +343,152 @@
     selectedListId = listId;
     await loadVocabularyWords(listId);
   }
+
+  // 단어장 목록 로드
+  const loadVocabularyLists = async () => {
+    if (!browser || !supabase) return;
+    
+    console.log('Loading vocabulary lists...');
+    const { data, error } = await supabase
+      .from('vocabulary_lists')
+      .select(`
+        *,
+        vocabulary_groups (
+          id,
+          title,
+          description
+        ),
+        vocabulary_words (count)
+      `)
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      console.error('Error loading vocabulary lists:', error);
+      return;
+    }
+
+    vocabularyLists = data.map(list => ({
+      ...list,
+      word_count: list.vocabulary_words[0]?.count || 0
+    }));
+    vocabularyLists = [...vocabularyLists];
+  };
+
+  // 단어장 삭제 처리
+  const handleDeleteList = async (event: CustomEvent<string>) => {
+    const listId = event.detail;
+    if (!confirm('정말로 이 단어장을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from('vocabulary_lists')
+      .delete()
+      .eq('id', listId);
+
+    if (error) {
+      console.error('Error deleting list:', error);
+      alert('단어장 삭제 중 오류가 발생했습니다.');
+      return;
+    }
+
+    vocabularyLists = vocabularyLists.filter(list => list.id !== listId);
+    if (selectedListId === listId) {
+      selectedListId = null;
+      selectedList = null;
+    }
+  };
+
+  // 단어장 수정 처리
+  const handleEditList = async (event: CustomEvent<any>) => {
+    const updatedList = event.detail;
+    const { error } = await supabase
+      .from('vocabulary_lists')
+      .update({
+        title: updatedList.title,
+        description: updatedList.description,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', updatedList.id);
+
+    if (error) {
+      console.error('Error updating list:', error);
+      alert('단어장 수정 중 오류가 발생했습니다.');
+      return;
+    }
+
+    vocabularyLists = vocabularyLists.map(list =>
+      list.id === updatedList.id ? { ...list, ...updatedList } : list
+    );
+  };
+
+  // 선택된 단어장의 단어들 로드
+  const loadVocabularyWords = async (listId: string) => {
+    if (!browser || !supabase) return;
+
+    // 단어장 정보 로드
+    const { data: listData, error: listError } = await supabase
+      .from('vocabulary_lists')
+      .select(`
+        *,
+        vocabulary_groups (
+          id,
+          title
+        )
+      `)
+      .eq('id', listId)
+      .single();
+
+    if (listError) {
+      console.error('Error loading list:', listError);
+      return;
+    }
+
+    selectedList = listData;
+
+    // 단어 목록 로드
+    const { data, error } = await supabase
+      .from('vocabulary_words')
+      .select('*')
+      .eq('list_id', listId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading words:', error);
+      return;
+    }
+
+    vocabularyData = data;
+    headers = ['word', 'part_of_speech', 'meaning', 'example'];
+  };
+
+  // 여러 단어 추가 처리
+  const handleAddWords = async (words: any[]) => {
+    if (!browser || !supabase || !selectedListId) return;
+
+    const wordsToInsert = words.map(word => ({
+      ...word,
+      list_id: selectedListId
+    }));
+
+    const { error } = await supabase
+      .from('vocabulary_words')
+      .insert(wordsToInsert);
+
+    if (error) {
+      console.error('Error adding words:', error);
+      alert('단어 추가 중 오류가 발생했습니다.');
+      return;
+    }
+
+    showNewWordModal = false;
+    await loadVocabularyWords(selectedListId);
+  };
 </script>
 
 <div class="container mx-auto px-4 py-8">
   <!-- 대시보드 섹션 -->
-  <div class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
-    {#if dashboardStats}
-      <DashboardLearningStatus
-        totalWords={dashboardStats.totalStats.totalWords}
-        recentWords={dashboardStats.recentWords}
-      />
-      <DashboardQuizStats
-        quizStats={dashboardStats.quizStats}
-      />
-
-      <!-- 누적 통계 -->
-      <div class="bg-white rounded-lg shadow-sm p-6">
-        <h3 class="text-lg font-bold text-pink-600 mb-4">
-          <i class="fas fa-bullseye mr-2"></i>전체 현황
-        </h3>
-        <div class="space-y-4">
-          <div>
-            <p class="text-3xl font-bold text-gray-800">
-              {dashboardStats.totalStats.totalLists}개
-              <span class="text-sm font-normal text-gray-500">단어장</span>
-            </p>
-          </div>
-          <div class="pt-4 border-t border-gray-100">
-            <p class="text-3xl font-bold text-gray-800">
-              {dashboardStats.totalStats.studyDays}일
-              <span class="text-sm font-normal text-gray-500">학습일</span>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- 학습 캘린더 -->
-      <StudyCalendar studyDates={dashboardStats.studyDates} />
-    {:else}
-      <!-- 스켈레톤 UI -->
-      <div class="bg-white rounded-lg shadow-sm p-6 relative overflow-hidden">
-        <div class="animate-pulse">
-          <div class="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div class="space-y-3">
-            <div class="h-8 bg-gray-200 rounded w-2/3"></div>
-            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div class="h-2 bg-gray-200 rounded w-full"></div>
-            <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-          </div>
-        </div>
-        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent skeleton-loading"></div>
-      </div>
-      <div class="bg-white rounded-lg shadow-sm p-6 relative overflow-hidden">
-        <div class="animate-pulse">
-          <div class="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div class="space-y-3">
-            <div class="h-8 bg-gray-200 rounded w-2/3"></div>
-            <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div class="space-y-1 mt-4">
-              <div class="h-8 bg-gray-200 rounded w-full"></div>
-              <div class="flex justify-between">
-                <div class="h-3 bg-gray-200 rounded w-12"></div>
-                <div class="h-3 bg-gray-200 rounded w-12"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent skeleton-loading"></div>
-      </div>
-      <div class="bg-white rounded-lg shadow-sm p-6 relative overflow-hidden">
-        <div class="animate-pulse">
-          <div class="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div class="grid grid-cols-7 gap-1">
-            {#each Array(7) as _}
-              <div class="h-4 bg-gray-200 rounded"></div>
-            {/each}
-            {#each Array(35) as _}
-              <div class="aspect-square bg-gray-200 rounded"></div>
-            {/each}
-          </div>
-        </div>
-        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent skeleton-loading"></div>
-      </div>
-    {/if}
-  </div>
+  <Dashboard />
 
   <!-- 메인 콘텐츠 영역 -->
   <div class="flex gap-6">
@@ -709,67 +509,20 @@
     </div>
 
     <!-- 오른쪽: 단어 관리 영역 -->
-    <div class="flex-1">
-      {#if selectedListId}
-        <div class="bg-white rounded-lg shadow-sm p-6">
-          <!-- 단어장 헤더 -->
-          <div class="flex justify-between items-center mb-6">
-            <div>
-              <h2 class="text-xl font-bold text-gray-800">
-                {selectedList?.title}
-                <span class="text-sm font-normal text-gray-500 ml-2">
-                  ({vocabularyData.length}개 단어)
-                </span>
-              </h2>
-              {#if selectedList?.description}
-                <p class="text-sm text-gray-600 mt-1">{selectedList.description}</p>
-              {/if}
-            </div>
-            <div class="flex items-center gap-3">
-              <button
-                on:click={() => showNewWordModal = true}
-                class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm flex items-center"
-              >
-                <i class="fas fa-plus mr-2"></i>단어 추가
-              </button>
-              <label class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm flex items-center cursor-pointer">
-                <i class="fas fa-file-import mr-2"></i>엑셀 가져오기
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  on:change={handleFileUpload}
-                  bind:this={fileInput}
-                  class="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          <!-- 단어 테이블 -->
-          <VocabularyTable
-            {vocabularyData}
-            {headers}
-            {selectedListId}
-            {selectedList}
-            on:quiz={generateQuiz}
-          />
-        </div>
-      {:else}
-        <div class="bg-white rounded-lg shadow-sm p-6 text-center">
-          <div class="max-w-md mx-auto">
-            <i class="fas fa-book text-6xl text-gray-300 mb-4"></i>
-            <h2 class="text-xl font-bold text-gray-800 mb-2">단어장을 선택해주세요</h2>
-            <p class="text-gray-600 mb-6">왼쪽 목록에서 단어장을 선택하면 단어 목록이 표시됩니다</p>
-            <button
-              on:click={() => showNewListModal = true}
-              class="bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-full text-sm inline-flex items-center"
-            >
-              <i class="fas fa-plus mr-2"></i>새 단어장 만들기
-            </button>
-          </div>
-        </div>
-      {/if}
-    </div>
+    <VocabularyManager
+      {selectedList}
+      {selectedListId}
+      {vocabularyData}
+      {headers}
+      on:newword={() => showNewWordModal = true}
+      on:newlist={() => showNewListModal = true}
+      on:quiz={generateQuiz}
+      on:fileupload={(event) => {
+        vocabularyData = event.detail.data;
+        headers = event.detail.headers;
+        showMappingModal = true;
+      }}
+    />
   </div>
 </div>
 
