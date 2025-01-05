@@ -196,6 +196,8 @@
       .map(item => ({
         word: item.word,
         answer: item.meaning,
+        example: item.example,
+        example_translation: item.example_translation,
         userInput: ''
       }));
 

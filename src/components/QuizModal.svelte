@@ -5,7 +5,13 @@
   import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
   
   export let show = false;
-  export let quizWords: { word: string; answer: string; userInput: string }[] = [];
+  export let quizWords: { 
+    word: string; 
+    answer: string; 
+    example?: string;
+    example_translation?: string;
+    userInput: string 
+  }[] = [];
   export let currentQuizIndex = 0;
   export let showResults = false;
   export let scores: { correct: boolean; explanation?: string }[] = [];
@@ -19,6 +25,8 @@
   let quizCount = 5;
   let showQuizSetup = true;
   let showSubmitConfirm = false;
+  let showExample = false;
+  let generatingExampleFor: string | null = null;
 
   function handleClose() {
     dispatch('close');
@@ -184,6 +192,46 @@
     }
   }
 
+  async function generateExample(word: string) {
+    if (generatingExampleFor === word) return;
+    
+    generatingExampleFor = word;
+
+    try {
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that generates example sentences for English words. Provide a natural, modern example that clearly demonstrates the word usage. Respond with a JSON object containing "english" and "korean" fields.'
+        },
+        {
+          role: 'user',
+          content: `Generate a simple, natural example sentence using the word "${word}". The sentence should be easy to understand and reflect modern usage.`
+        }
+      ];
+
+      const response = await createChatCompletion(messages);
+      
+      try {
+        const cleanJson = response.message.replace(/```json\n?|\n?```/g, '').trim();
+        const example = JSON.parse(cleanJson);
+        
+        // 현재 단어의 예문 업데이트
+        quizWords[currentQuizIndex] = {
+          ...quizWords[currentQuizIndex],
+          example: example.english,
+          example_translation: example.korean
+        };
+        quizWords = [...quizWords];
+      } catch (error) {
+        console.error('Error parsing example:', error);
+      }
+    } catch (error) {
+      console.error('Error generating example:', error);
+    } finally {
+      generatingExampleFor = null;
+    }
+  }
+
   onMount(() => {
     window.addEventListener('keydown', handleKeydown);
     return () => {
@@ -236,6 +284,40 @@
               {currentQuizIndex + 1}번째 문제 / 총 {quizWords.length}문제
             </p>
             <p class="text-2xl font-bold mb-6 text-gray-800">{quizWords[currentQuizIndex]?.word}</p>
+            {#if !showResults}
+              <div class="mb-4">
+                <button
+                  on:click={() => showExample = !showExample}
+                  class="text-pink-500 hover:text-pink-600 text-sm"
+                >
+                  {showExample ? '예문 숨기기' : '예문 보기'} 👀
+                </button>
+              </div>
+              {#if showExample}
+                <div class="bg-pink-50 rounded-lg p-4 mb-6 text-left">
+                  {#if quizWords[currentQuizIndex]?.example}
+                    <p class="text-gray-800">{quizWords[currentQuizIndex].example}</p>
+                    {#if quizWords[currentQuizIndex].example_translation}
+                      <p class="text-gray-600 mt-2">{quizWords[currentQuizIndex].example_translation}</p>
+                    {/if}
+                  {:else}
+                    <div class="text-center">
+                      <button
+                        on:click={() => generateExample(quizWords[currentQuizIndex].word)}
+                        class="text-pink-500 hover:text-pink-600 text-sm"
+                        disabled={generatingExampleFor === quizWords[currentQuizIndex].word}
+                      >
+                        {#if generatingExampleFor === quizWords[currentQuizIndex].word}
+                          <span class="animate-spin inline-block">🔄</span> 생성 중...
+                        {:else}
+                          ✨ 예문 생성하기
+                        {/if}
+                      </button>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            {/if}
           </div>
           <input
             type="text"
