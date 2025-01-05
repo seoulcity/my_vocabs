@@ -24,23 +24,21 @@
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are a helpful assistant that generates natural example sentences for English vocabulary words. Provide both English example and its Korean translation.'
+          content: 'You are a helpful assistant that generates natural example sentences for English vocabulary words. You must respond with ONLY a JSON object, no markdown formatting or explanation. The JSON must contain exactly two fields: "english" for the example sentence and "korean" for its translation.'
         },
         {
           role: 'user',
-          content: `Please create a natural example sentence for the word "${word}" (meaning: ${meaning}). 
-          Return the response in the following JSON format only:
-          {
-            "english": "example sentence in English",
-            "korean": "한글 번역"
-          }`
+          content: `Create a natural example sentence for the word "${word}" (meaning: ${meaning}). Respond with ONLY a JSON object in this exact format: {"english": "example sentence", "korean": "한글 번역"}`
         }
       ];
 
       const response = await createChatCompletion(messages);
       
       try {
-        const parsedResponse = JSON.parse(response.message);
+        // Remove any potential markdown formatting or extra whitespace
+        const cleanJson = response.message.replace(/```json\n?|\n?```/g, '').trim();
+        const parsedResponse = JSON.parse(cleanJson);
+        
         if (!parsedResponse.english || !parsedResponse.korean) {
           throw new Error('Invalid response format');
         }
@@ -48,6 +46,7 @@
         dispatch('exampleGenerated', generatedExample);
       } catch (parseError) {
         console.error('Error parsing response:', parseError);
+        console.log('Raw response:', response.message);
         error = '예문 생성 결과를 처리하는 중 오류가 발생했습니다.';
       }
     } catch (error: any) {
