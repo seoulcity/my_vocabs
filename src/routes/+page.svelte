@@ -10,6 +10,7 @@
   import VocabularyTable from '../components/VocabularyTable.svelte';
   import { browser } from '$app/environment';
   import NewGroupModal from '../components/NewGroupModal.svelte';
+  import StudyCalendar from '../components/StudyCalendar.svelte';
 
   // 환경 변수 체크
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -54,6 +55,125 @@
     meaning: '',
     example: ''
   };
+
+  // 대시보드 데이터 타입 정의
+  type DashboardStats = {
+    recentWords: {
+      count: number;
+      trend: number;
+    };
+    quizStats: {
+      totalQuizzes: number;
+      totalWords: number;
+      averageScore: number;
+      scoresTrend: number[];
+    };
+    totalStats: {
+      totalWords: number;
+      totalLists: number;
+      studyDays: number;
+    };
+    studyDates: Date[];
+  };
+
+  let dashboardStats: DashboardStats | null = null;
+
+  // 대시보드 데이터 로드
+  async function loadDashboardStats() {
+    if (!browser || !supabase) return;
+
+    try {
+      // 1. 최근 7일간 추가된 단어 수
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+      const { data: recentWords, error: recentWordsError } = await supabase
+        .from('vocabulary_words')
+        .select('created_at')
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      const { data: previousWords, error: previousWordsError } = await supabase
+        .from('vocabulary_words')
+        .select('created_at')
+        .gte('created_at', fourteenDaysAgo.toISOString())
+        .lt('created_at', sevenDaysAgo.toISOString());
+
+      // 2. 퀴즈 통계
+      const { data: quizzes, error: quizzesError } = await supabase
+        .from('quiz_history')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      // 3. 전체 통계
+      const { data: totalWords, error: totalWordsError } = await supabase
+        .from('vocabulary_words')
+        .select('created_at');
+
+      const { data: totalLists, error: totalListsError } = await supabase
+        .from('vocabulary_lists')
+        .select('id');
+
+      if (recentWordsError || previousWordsError || quizzesError || totalWordsError || totalListsError) {
+        throw new Error('Error loading dashboard stats');
+      }
+
+      // 학습일 계산 (단어 추가 또는 퀴즈를 푼 날짜의 unique 개수)
+      const studyDates = new Set<string>();
+      const allStudyDates: Date[] = [];
+      
+      totalWords?.forEach(word => {
+        const date = new Date(word.created_at);
+        const dateString = date.toDateString();
+        if (!studyDates.has(dateString)) {
+          studyDates.add(dateString);
+          allStudyDates.push(date);
+        }
+      });
+      
+      quizzes?.forEach(quiz => {
+        const date = new Date(quiz.created_at);
+        const dateString = date.toDateString();
+        if (!studyDates.has(dateString)) {
+          studyDates.add(dateString);
+          allStudyDates.push(date);
+        }
+      });
+
+      // 퀴즈 점수 계산
+      const quizScores = quizzes?.map(quiz => (quiz.score / quiz.total_questions) * 100) || [];
+      const averageScore = quizScores.length > 0
+        ? quizScores.reduce((a, b) => a + b, 0) / quizScores.length
+        : 0;
+
+      dashboardStats = {
+        recentWords: {
+          count: recentWords?.length || 0,
+          trend: previousWords?.length
+            ? ((recentWords?.length || 0) - previousWords.length) / previousWords.length * 100
+            : 0
+        },
+        quizStats: {
+          totalQuizzes: quizzes?.length || 0,
+          totalWords: quizzes?.reduce((sum, quiz) => sum + quiz.total_questions, 0) || 0,
+          averageScore,
+          scoresTrend: quizScores.reverse()
+        },
+        totalStats: {
+          totalWords: totalWords?.length || 0,
+          totalLists: totalLists?.length || 0,
+          studyDays: studyDates.size
+        },
+        studyDates: allStudyDates
+      };
+
+      console.log('Dashboard stats:', dashboardStats);
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
+    }
+  }
 
   // 단어장 목록 로드
   const loadVocabularyLists = async () => {
@@ -199,6 +319,7 @@
   onMount(async () => {
     await loadGroups();
     await loadVocabularyLists();
+    await loadDashboardStats();
   });
 
   async function loadGroups() {
@@ -484,6 +605,124 @@
 </script>
 
 <div class="container mx-auto px-4 py-8">
+  <!-- 대시보드 섹션 -->
+  {#if dashboardStats}
+    <div class="mb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
+      <!-- 최근 학습 현황 -->
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <h3 class="text-lg font-bold text-pink-600 mb-4">
+          <i class="fas fa-book mr-2"></i>학습 현황
+        </h3>
+        <div class="space-y-4">
+          <div>
+            <p class="text-3xl font-bold text-gray-800 flex items-baseline">
+              {dashboardStats.totalStats.totalWords}
+              <span class="text-sm font-normal text-gray-500 ml-2">누적 단어</span>
+              {#if dashboardStats.recentWords.count > 0}
+                <span class="ml-2 text-lg font-bold text-green-600">
+                  +{dashboardStats.recentWords.count}
+                </span>
+              {/if}
+            </p>
+            {#if dashboardStats.recentWords.trend !== 0}
+              <p class="text-sm {dashboardStats.recentWords.trend > 0 ? 'text-green-600' : 'text-pink-600'} mt-1">
+                {dashboardStats.recentWords.trend > 0 ? '▲' : '▼'}
+                {Math.abs(Math.round(dashboardStats.recentWords.trend))}% 전주 대비
+              </p>
+            {/if}
+          </div>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              class="h-full bg-gradient-to-r from-pink-500 to-pink-300"
+              style="width: 100%"
+            ></div>
+            <div
+              class="h-full bg-gradient-to-r from-green-500 to-green-300 -mt-2"
+              style="width: {(dashboardStats.recentWords.count / dashboardStats.totalStats.totalWords) * 100}%"
+            ></div>
+          </div>
+          <p class="text-xs text-gray-500">
+            최근 7일간 {dashboardStats.recentWords.count}개의 새로운 단어를 학습했어요!
+          </p>
+        </div>
+      </div>
+
+      <!-- 퀴즈 통계 -->
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <h3 class="text-lg font-bold text-pink-600 mb-4">
+          <i class="fas fa-chart-bar mr-2"></i>퀴즈 성적
+        </h3>
+        <div class="space-y-4">
+          <div>
+            <div class="flex items-baseline gap-2">
+              <p class="text-3xl font-bold text-gray-800">
+                {Math.round(dashboardStats.quizStats.averageScore)}%
+              </p>
+              <p class="text-sm text-gray-500">누적 평균</p>
+              {#if dashboardStats.quizStats.scoresTrend.length > 0}
+                <p class="text-lg font-bold {dashboardStats.quizStats.scoresTrend[0] >= dashboardStats.quizStats.averageScore ? 'text-green-600' : 'text-pink-600'}">
+                  {Math.round(dashboardStats.quizStats.scoresTrend[0])}%
+                </p>
+                <p class="text-sm text-gray-500">최근</p>
+              {/if}
+            </div>
+            <p class="text-sm text-gray-600 mt-1">
+              총 {dashboardStats.quizStats.totalQuizzes}회 시험,
+              {dashboardStats.quizStats.totalWords}개 단어
+            </p>
+          </div>
+          {#if dashboardStats.quizStats.scoresTrend.length > 1}
+            <div class="space-y-1">
+              <p class="text-xs text-gray-500">최근 5회 성적 추이</p>
+              <div class="h-8 flex items-end gap-1">
+                {#each dashboardStats.quizStats.scoresTrend as score}
+                  <div
+                    class="w-full bg-gradient-to-t rounded-t transition-all duration-300
+                      {score >= dashboardStats.quizStats.averageScore ? 'from-green-500 to-green-300' : 'from-pink-500 to-pink-300'}"
+                    style="height: {score}%"
+                    title="{Math.round(score)}%"
+                  >
+                    <div class="text-xs text-white text-center mt-1">
+                      {Math.round(score)}%
+                    </div>
+                  </div>
+                {/each}
+              </div>
+              <div class="flex justify-between text-xs text-gray-400">
+                <span>5회 전</span>
+                <span>최근</span>
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- 누적 통계 -->
+      <div class="bg-white rounded-lg shadow-sm p-6">
+        <h3 class="text-lg font-bold text-pink-600 mb-4">
+          <i class="fas fa-bullseye mr-2"></i>전체 현황
+        </h3>
+        <div class="space-y-4">
+          <div>
+            <p class="text-3xl font-bold text-gray-800">
+              {dashboardStats.totalStats.totalLists}개
+              <span class="text-sm font-normal text-gray-500">단어장</span>
+            </p>
+          </div>
+          <div class="pt-4 border-t border-gray-100">
+            <p class="text-3xl font-bold text-gray-800">
+              {dashboardStats.totalStats.studyDays}일
+              <span class="text-sm font-normal text-gray-500">학습일</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 학습 캘린더 -->
+      <StudyCalendar studyDates={dashboardStats.studyDates} />
+    </div>
+  {/if}
+
   <VocabularyLists
     {vocabularyLists}
     {selectedListId}
