@@ -6,6 +6,8 @@
   import NewWordModal from '../components/NewWordModal.svelte';
   import QuizModal from '../components/QuizModal.svelte';
   import ColumnMappingModal from '../components/ColumnMappingModal.svelte';
+  import VocabularyLists from '../components/VocabularyLists.svelte';
+  import VocabularyTable from '../components/VocabularyTable.svelte';
 
   const supabase = createClient(
     import.meta.env.VITE_SUPABASE_URL,
@@ -227,36 +229,13 @@
       ✨ 꾜리의 Power 단어공부 ✨
     </h1>
     
-    <!-- 단어장 선택 및 생성 섹션 -->
-    <div class="mb-8">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold text-pink-600">📚 단어장</h2>
-        <button
-          on:click={() => showNewListModal = true}
-          class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
-        >
-          ✨ 새 단어장 만들기
-        </button>
-      </div>
-      
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {#each vocabularyLists as list}
-          <button
-            on:click={() => {
-              selectedListId = list.id;
-              loadVocabularyWords(list.id);
-            }}
-            class="p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow
-              {selectedListId === list.id ? 'ring-2 ring-pink-500' : ''}"
-          >
-            <h3 class="font-bold text-gray-800">{list.title}</h3>
-            {#if list.description}
-              <p class="text-sm text-gray-600 mt-1">{list.description}</p>
-            {/if}
-          </button>
-        {/each}
-      </div>
-    </div>
+    <!-- 단어장 목록 섹션 -->
+    <VocabularyLists
+      bind:vocabularyLists
+      bind:selectedListId
+      bind:showNewListModal
+      on:select={(event) => loadVocabularyWords(event.detail)}
+    />
 
     <!-- 파일 업로드 섹션 -->
     {#if selectedListId}
@@ -264,12 +243,6 @@
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-bold text-pink-600">📝 단어 관리</h2>
           <div class="space-x-4">
-            <button
-              on:click={() => showNewWordModal = true}
-              class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
-            >
-              ✏️ 단어 추가
-            </button>
             <label class="inline-block">
               <span class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm cursor-pointer">
                 📥 엑셀 파일로 추가
@@ -287,54 +260,18 @@
       </div>
     {/if}
 
-    <!-- 단어 목록 및 시험 섹션 -->
-    {#if vocabularyData.length > 0}
-      <div class="mb-12 text-center">
-        <button
-          on:click={generateQuiz}
-          class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-3 px-8 rounded-full transform hover:scale-105 transition-transform duration-200 shadow-md"
-        >
-          ✏️ 단어 시험 시작하기
-        </button>
-      </div>
-
-      <div class="overflow-x-auto bg-white rounded-lg shadow-md">
-        <table class="min-w-full">
-          <thead>
-            <tr>
-              {#each headers as header}
-                <th class="px-6 py-3 border-b-2 border-pink-100 bg-pink-50 text-left text-sm font-medium text-pink-600 uppercase tracking-wider">
-                  {header}
-                </th>
-              {/each}
-            </tr>
-          </thead>
-          <tbody>
-            {#each vocabularyData as row}
-              <tr class="hover:bg-pink-50 transition-colors duration-150">
-                {#each headers as header}
-                  <td class="px-6 py-4 border-b border-pink-100">
-                    {row[header]}
-                  </td>
-                {/each}
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {:else if selectedListId}
-      <div class="text-center text-pink-600 text-lg">
-        <p>📝 단어를 추가하거나 엑셀 파일을 올려주세요!</p>
-      </div>
-    {:else}
-      <div class="text-center text-pink-600 text-lg">
-        <p>📚 단어장을 선택하거나 새로 만들어주세요!</p>
-      </div>
-    {/if}
+    <!-- 단어 목록 섹션 -->
+    <VocabularyTable
+      {vocabularyData}
+      {headers}
+      {selectedListId}
+      bind:showNewWordModal
+      on:quiz={generateQuiz}
+    />
   </div>
 </div>
 
-<!-- 새 단어장 생성 모달 -->
+<!-- Modals -->
 <NewListModal
   show={showNewListModal}
   on:close={() => showNewListModal = false}
@@ -357,7 +294,6 @@
   }}
 />
 
-<!-- 새 단어 추가 모달 -->
 <NewWordModal
   show={showNewWordModal}
   on:close={() => showNewWordModal = false}
@@ -379,7 +315,6 @@
   }}
 />
 
-<!-- 단어 시험 모달 -->
 <QuizModal
   show={showModal}
   {quizWords}
@@ -392,7 +327,6 @@
   on:check={checkAnswers}
 />
 
-<!-- 컬럼 매핑 모달 -->
 <ColumnMappingModal
   show={showMappingModal}
   {headers}

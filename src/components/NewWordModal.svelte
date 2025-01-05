@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import WordSuggestions from './WordSuggestions.svelte';
   
   export let show = false;
   
@@ -20,6 +21,16 @@
     dispatch('add', newWord);
     newWord = { word: '', part_of_speech: '', meaning: '', example: '' };
   }
+
+  function handleSuggestionSelect(event: CustomEvent) {
+    const suggestion = event.detail;
+    newWord = {
+      word: suggestion.word,
+      part_of_speech: suggestion.partOfSpeech || '',
+      meaning: suggestion.definition || '',
+      example: ''
+    };
+  }
 </script>
 
 {#if show}
@@ -27,13 +38,17 @@
     <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-xl">
       <h2 class="text-2xl font-bold text-pink-600 mb-6">✏️ 새 단어 추가</h2>
       <div class="space-y-4">
-        <div>
+        <div class="relative">
           <label class="block text-sm font-medium text-gray-700 mb-1">단어</label>
           <input
             type="text"
             bind:value={newWord.word}
             class="w-full p-2 border rounded-lg"
             placeholder="단어를 입력하세요"
+          />
+          <WordSuggestions
+            word={newWord.word}
+            on:select={handleSuggestionSelect}
           />
         </div>
         <div>
