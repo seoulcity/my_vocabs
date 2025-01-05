@@ -297,9 +297,6 @@
                 <div class="bg-pink-50 rounded-lg p-4 mb-6 text-left">
                   {#if quizWords[currentQuizIndex]?.example}
                     <p class="text-gray-800">{quizWords[currentQuizIndex].example}</p>
-                    {#if quizWords[currentQuizIndex].example_translation}
-                      <p class="text-gray-600 mt-2">{quizWords[currentQuizIndex].example_translation}</p>
-                    {/if}
                   {:else}
                     <div class="text-center">
                       <button
