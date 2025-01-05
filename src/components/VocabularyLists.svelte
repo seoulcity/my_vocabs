@@ -1,6 +1,5 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { dndzone } from 'svelte-dnd-action';
   import { createClient } from '@supabase/supabase-js';
   import { slide } from 'svelte/transition';
   import { quintOut } from 'svelte/easing';
@@ -257,6 +256,8 @@
       if (l.id === groupLists[currentIndex - 1].id) return { ...l, display_order: oldOrder };
       return l;
     });
+    // Sort the list after updating display_order
+    vocabularyLists = vocabularyLists.sort((a, b) => a.display_order - b.display_order);
 
     // Update first item
     const { error: error1 } = await supabase
@@ -273,6 +274,8 @@
         if (l.id === groupLists[currentIndex - 1].id) return { ...l, display_order: newOrder };
         return l;
       });
+      // Sort the list after reverting
+      vocabularyLists = vocabularyLists.sort((a, b) => a.display_order - b.display_order);
       return;
     }
 
@@ -291,6 +294,8 @@
         if (l.id === groupLists[currentIndex - 1].id) return { ...l, display_order: newOrder };
         return l;
       });
+      // Sort the list after reverting
+      vocabularyLists = vocabularyLists.sort((a, b) => a.display_order - b.display_order);
     }
   }
 
@@ -311,6 +316,8 @@
       if (l.id === groupLists[currentIndex + 1].id) return { ...l, display_order: oldOrder };
       return l;
     });
+    // Sort the list after updating display_order
+    vocabularyLists = vocabularyLists.sort((a, b) => a.display_order - b.display_order);
 
     // Update first item
     const { error: error1 } = await supabase
@@ -327,6 +334,8 @@
         if (l.id === groupLists[currentIndex + 1].id) return { ...l, display_order: newOrder };
         return l;
       });
+      // Sort the list after reverting
+      vocabularyLists = vocabularyLists.sort((a, b) => a.display_order - b.display_order);
       return;
     }
 
@@ -345,6 +354,8 @@
         if (l.id === groupLists[currentIndex + 1].id) return { ...l, display_order: newOrder };
         return l;
       });
+      // Sort the list after reverting
+      vocabularyLists = vocabularyLists.sort((a, b) => a.display_order - b.display_order);
     }
   }
 
@@ -485,12 +496,7 @@
     </div>
   </div>
   
-  <section
-    use:dndzone={{items: groups, flipDurationMs: 300}}
-    on:consider={handleGroupDndConsider}
-    on:finalize={handleGroupDndFinalize}
-    class="space-y-4"
-  >
+  <section class="space-y-4">
     {#each groups as group (group.id)}
       <div
         class="bg-white rounded-lg shadow-sm p-4 transform transition-transform duration-200"
@@ -588,12 +594,6 @@
           {#if expandedGroups.has(group.id)}
             <div
               transition:slide={{ duration: 300, easing: quintOut }}
-              use:dndzone={{
-                items: vocabularyLists.filter(list => list.group_id === group.id),
-                flipDurationMs: 300
-              }}
-              on:consider={event => handleListDndConsider(event, group.id)}
-              on:finalize={event => handleListDndFinalize(event, group.id)}
               class="mt-4 space-y-2 pl-6"
             >
               {#if vocabularyLists.filter(list => list.group_id === group.id).length === 0}
