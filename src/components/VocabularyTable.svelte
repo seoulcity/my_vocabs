@@ -331,7 +331,7 @@
                   <td class="px-4 py-3">{item.meaning}</td>
                   <td class="px-4 py-3 text-gray-600">
                     {#if item.example}
-                      <div class="flex items-start justify-between group">
+                      <div class="flex items-start justify-between group min-h-[4rem] relative">
                         <div class="flex-1">
                           <p class="text-gray-800">{item.example}</p>
                           <button
@@ -346,7 +346,7 @@
                         </div>
                         <button
                           on:click={() => generateExample(item.word)}
-                          class="hidden group-hover:block text-pink-500 hover:text-pink-600 text-sm ml-2"
+                          class="hidden group-hover:block text-pink-500 hover:text-pink-600 text-sm ml-2 absolute top-0 right-0"
                           disabled={generatingExampleFor === item.word}
                         >
                           {#if generatingExampleFor === item.word}
@@ -357,31 +357,33 @@
                         </button>
                       </div>
                     {:else}
-                      <button
-                        on:click={() => generateExample(item.word)}
-                        class="hidden group-hover:block text-pink-500 hover:text-pink-600 text-sm"
-                        disabled={generatingExampleFor === item.word}
-                      >
-                        {#if generatingExampleFor === item.word}
-                          <span class="animate-spin inline-block">🔄</span> 생성 중...
-                        {:else}
-                          ✨ 예문 생성하기
-                        {/if}
-                      </button>
-                      {#if examples.has(item.word)}
-                        <div class="mt-2">
-                          <p class="text-gray-800">{examples.get(item.word).english}</p>
-                          <button
-                            on:click={() => toggleTranslation(item.word)}
-                            class="text-pink-500 hover:text-pink-600 text-sm mt-1"
-                          >
-                            {showTranslationFor.has(item.word) ? '해석 숨기기' : '해석 보기'} 👀
-                          </button>
-                          {#if showTranslationFor.has(item.word)}
-                            <p class="text-gray-600 mt-1">{examples.get(item.word).korean}</p>
+                      <div class="min-h-[4rem] relative">
+                        <button
+                          on:click={() => generateExample(item.word)}
+                          class="hidden group-hover:block text-pink-500 hover:text-pink-600 text-sm absolute top-0 right-0"
+                          disabled={generatingExampleFor === item.word}
+                        >
+                          {#if generatingExampleFor === item.word}
+                            <span class="animate-spin inline-block">🔄</span> 생성 중...
+                          {:else}
+                            ✨ 예문 생성하기
                           {/if}
-                        </div>
-                      {/if}
+                        </button>
+                        {#if examples.has(item.word)}
+                          <div class="mt-2">
+                            <p class="text-gray-800">{examples.get(item.word).english}</p>
+                            <button
+                              on:click={() => toggleTranslation(item.word)}
+                              class="text-pink-500 hover:text-pink-600 text-sm mt-1"
+                            >
+                              {showTranslationFor.has(item.word) ? '해석 숨기기' : '해석 보기'} 👀
+                            </button>
+                            {#if showTranslationFor.has(item.word)}
+                              <p class="text-gray-600 mt-1">{examples.get(item.word).korean}</p>
+                            {/if}
+                          </div>
+                        {/if}
+                      </div>
                     {/if}
                   </td>
                 {/if}

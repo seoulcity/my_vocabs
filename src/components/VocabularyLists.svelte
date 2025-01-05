@@ -11,6 +11,7 @@
   export let selectedListId: string | null = null;
   export let showNewListModal = false;
   export let showNewGroupModal = false;
+  export let groups: any[] = [];
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -18,7 +19,6 @@
 
   let editingList: any = null;
   let editingGroup: any = null;
-  let groups: any[] = [];
   let expandedGroups: Set<string> = new Set();
   let movingList: any = null;
   let showMoveModal = false;
@@ -62,7 +62,6 @@
 
   // 컴포넌트 마운트 시 그룹 로드
   onMount(() => {
-    loadGroups();
     window.addEventListener('keydown', handleKeydown);
     return () => {
       window.removeEventListener('keydown', handleKeydown);
@@ -70,11 +69,11 @@
   });
 
   function handleNewList() {
-    showNewListModal = true;
+    dispatch('newList');
   }
 
   function handleNewGroup() {
-    showNewGroupModal = true;
+    dispatch('newGroup');
   }
 
   function handleEdit(list: any) {
@@ -472,6 +471,18 @@
       groups = groups.sort((a, b) => a.display_order - b.display_order);
     }
   }
+
+  async function handleAddGroup(event: CustomEvent) {
+    const newGroup = event.detail;
+    // Update local state immediately
+    groups = [...groups, newGroup].sort((a, b) => a.display_order - b.display_order);
+    // Automatically expand the new group
+    expandedGroups.add(newGroup.id);
+    expandedGroups = expandedGroups; // trigger reactivity
+    
+    // Reload all groups to ensure we have the latest data
+    await loadGroups();
+  }
 </script>
 
 <div class="mb-8">
@@ -603,7 +614,7 @@
                 >
                   <p class="mb-2">아직 단어장이 없습니다</p>
                   <button
-                    on:click={handleNewList}
+                    on:click={() => dispatch('newList')}
                     class="text-pink-500 hover:text-pink-600 text-sm"
                   >
                     ✨ 새 단어장 만들기

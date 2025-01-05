@@ -82,6 +82,7 @@
       ...list,
       word_count: list.vocabulary_words[0]?.count || 0
     }));
+    vocabularyLists = [...vocabularyLists];
   };
 
   // 단어장 삭제 처리
@@ -216,7 +217,17 @@
 
   async function handleAddGroup(event: CustomEvent) {
     const newGroup = event.detail;
-    groups = [...groups, newGroup];
+    console.log('Adding new group:', newGroup);
+    
+    try {
+      await loadGroups();  // 전체 그룹 목록을 새로 로드
+      console.log('Groups loaded successfully');
+      
+      await loadVocabularyLists();  // 단어장 목록도 함께 새로 로드
+      console.log('Vocabulary lists loaded successfully');
+    } catch (error) {
+      console.error('Error in handleAddGroup:', error);
+    }
   }
 
   const handleFileUpload = async (event: Event) => {
@@ -453,6 +464,7 @@
     {selectedListId}
     {showNewListModal}
     {showNewGroupModal}
+    {groups}
     on:select={handleSelectList}
     on:delete={handleDeleteList}
     on:edit={handleEditList}
