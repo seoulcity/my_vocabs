@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
   import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
+  import { slide } from 'svelte/transition';
   
   export let show = false;
   
@@ -20,19 +21,24 @@
     word: string;
     part_of_speech: string;
     meaning: string;
-    example: string;
     isNew?: boolean;
   };
 
   let wordEntries: WordEntry[] = [
-    { word: '', part_of_speech: '', meaning: '', example: '', isNew: true }
+    { word: '', part_of_speech: '', meaning: '', isNew: true }
   ];
   let isGeneratingMeanings = false;
   let error: string | null = null;
 
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && show) {
+      handleClose();
+    }
+  }
+
   function handleClose() {
+    wordEntries = [createEmptyEntry()];
     dispatch('close');
-    resetForm();
   }
 
   function handleAdd() {
@@ -47,7 +53,7 @@
   }
 
   function resetForm() {
-    wordEntries = [{ word: '', part_of_speech: '', meaning: '', example: '', isNew: true }];
+    wordEntries = [{ word: '', part_of_speech: '', meaning: '', isNew: true }];
     error = null;
   }
 
@@ -70,7 +76,7 @@
       entry.isNew = false;
       wordEntries = [
         ...wordEntries,
-        { word: '', part_of_speech: '', meaning: '', example: '', isNew: true }
+        { word: '', part_of_speech: '', meaning: '', isNew: true }
       ];
     }
   }
@@ -133,18 +139,34 @@
       isGeneratingMeanings = false;
     }
   }
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('keydown', handleKeydown);
+    };
+  });
 </script>
 
 {#if show}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-8 max-w-4xl w-full shadow-xl">
-      <div class="flex justify-between items-center mb-6">
-        <div>
-          <h2 class="text-2xl font-bold text-pink-600">✏️ 새 단어 추가</h2>
-          <p class="text-sm text-gray-600 mt-1">엑셀처럼 쉽게 여러 단어를 한 번에 추가할 수 있어요!</p>
-        </div>
-      </div>
-
+  <div
+    transition:slide={{ duration: 200 }}
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+  >
+    <div
+      class="bg-white rounded-lg p-6 w-full max-w-4xl transform transition-all duration-200 relative"
+      in:slide={{ duration: 200, delay: 100 }}
+    >
+      <button
+        on:click={handleClose}
+        class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+        title="닫기"
+      >
+        ✕
+      </button>
+      
+      <h2 class="text-xl font-bold mb-4">단어 추가하기</h2>
+      
       <div class="bg-blue-50 p-4 rounded-lg mb-6">
         <h3 class="font-medium text-blue-800 mb-2">💡 사용 방법</h3>
         <ul class="text-sm text-blue-700 space-y-1">
@@ -188,7 +210,6 @@
               <th class="px-4 py-2 bg-pink-50 text-pink-600 font-medium text-sm text-left">단어*</th>
               <th class="px-4 py-2 bg-pink-50 text-pink-600 font-medium text-sm text-left">품사</th>
               <th class="px-4 py-2 bg-pink-50 text-pink-600 font-medium text-sm text-left">의미*</th>
-              <th class="px-4 py-2 bg-pink-50 text-pink-600 font-medium text-sm text-left">예문</th>
               <th class="px-4 py-2 bg-pink-50 text-pink-600 font-medium text-sm text-left w-10"></th>
             </tr>
           </thead>
@@ -224,15 +245,6 @@
                     on:input={() => handleInput(i)}
                     class="w-full p-2 border rounded-lg"
                     placeholder="의미를 입력하세요"
-                  />
-                </td>
-                <td class="px-4 py-2">
-                  <input
-                    type="text"
-                    bind:value={entry.example}
-                    on:input={() => handleInput(i)}
-                    class="w-full p-2 border rounded-lg"
-                    placeholder="예문을 입력하세요"
                   />
                 </td>
                 <td class="px-4 py-2">

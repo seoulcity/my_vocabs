@@ -9,6 +9,7 @@
   import VocabularyLists from '../components/VocabularyLists.svelte';
   import VocabularyTable from '../components/VocabularyTable.svelte';
   import { browser } from '$app/environment';
+  import NewGroupModal from '../components/NewGroupModal.svelte';
 
   // 환경 변수 체크
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -37,10 +38,13 @@
   let scores: { correct: boolean }[] = [];
   
   // 단어장 관련 상태
-  let vocabularyLists = [];
+  let vocabularyLists: any[] = [];
   let selectedListId: string | null = null;
   let showNewListModal = false;
   let showNewWordModal = false;
+  let showNewGroupModal = false;
+  let selectedList: any = null;
+  let groups: any[] = [];
 
   // 기존 상태 변수들 아래에 추가
   let showMappingModal = false;
@@ -58,26 +62,39 @@
     console.log('Loading vocabulary lists...');
     const { data, error } = await supabase
       .from('vocabulary_lists')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select(`
+        *,
+        vocabulary_groups (
+          id,
+          title,
+          description
+        ),
+        vocabulary_words (count)
+      `)
+      .order('display_order', { ascending: true });
 
     if (error) {
-      console.error('Error loading lists:', error.message, error.details, error.hint);
+      console.error('Error loading vocabulary lists:', error);
       return;
     }
 
-    console.log('Loaded vocabulary lists:', data);
-    vocabularyLists = data;
+    vocabularyLists = data.map(list => ({
+      ...list,
+      word_count: list.vocabulary_words[0]?.count || 0
+    }));
   };
 
   // 단어장 삭제 처리
-  const handleDeleteList = async (id: string) => {
-    if (!browser || !supabase) return;
+  const handleDeleteList = async (event: CustomEvent<string>) => {
+    const listId = event.detail;
+    if (!confirm('정말로 이 단어장을 삭제하시겠습니까?')) {
+      return;
+    }
 
     const { error } = await supabase
       .from('vocabulary_lists')
       .delete()
-      .eq('id', id);
+      .eq('id', listId);
 
     if (error) {
       console.error('Error deleting list:', error);
@@ -85,18 +102,16 @@
       return;
     }
 
-    if (selectedListId === id) {
+    vocabularyLists = vocabularyLists.filter(list => list.id !== listId);
+    if (selectedListId === listId) {
       selectedListId = null;
-      vocabularyData = [];
+      selectedList = null;
     }
-
-    await loadVocabularyLists();
   };
 
   // 단어장 수정 처리
-  const handleEditList = async (updatedList: any) => {
-    if (!browser || !supabase) return;
-
+  const handleEditList = async (event: CustomEvent<any>) => {
+    const updatedList = event.detail;
     const { error } = await supabase
       .from('vocabulary_lists')
       .update({
@@ -112,7 +127,9 @@
       return;
     }
 
-    await loadVocabularyLists();
+    vocabularyLists = vocabularyLists.map(list =>
+      list.id === updatedList.id ? { ...list, ...updatedList } : list
+    );
   };
 
   // 여러 단어 추가 처리
@@ -142,6 +159,27 @@
   const loadVocabularyWords = async (listId: string) => {
     if (!browser || !supabase) return;
 
+    // 단어장 정보 로드
+    const { data: listData, error: listError } = await supabase
+      .from('vocabulary_lists')
+      .select(`
+        *,
+        vocabulary_groups (
+          id,
+          title
+        )
+      `)
+      .eq('id', listId)
+      .single();
+
+    if (listError) {
+      console.error('Error loading list:', listError);
+      return;
+    }
+
+    selectedList = listData;
+
+    // 단어 목록 로드
     const { data, error } = await supabase
       .from('vocabulary_words')
       .select('*')
@@ -157,11 +195,29 @@
     headers = ['word', 'part_of_speech', 'meaning', 'example'];
   };
 
-  onMount(() => {
-    if (browser) {
-      loadVocabularyLists();
-    }
+  onMount(async () => {
+    await loadGroups();
+    await loadVocabularyLists();
   });
+
+  async function loadGroups() {
+    const { data, error } = await supabase
+      .from('vocabulary_groups')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      console.error('Error loading groups:', error);
+      return;
+    }
+
+    groups = data;
+  }
+
+  async function handleAddGroup(event: CustomEvent) {
+    const newGroup = event.detail;
+    groups = [...groups, newGroup];
+  }
 
   const handleFileUpload = async (event: Event) => {
     const target = event.target as HTMLInputElement;
@@ -299,10 +355,10 @@
               model: "gpt-3.5-turbo",
               messages: [{
                 role: "system",
-                content: "You are a vocabulary test grader. You should compare the user's answer with the correct answer and determine if they are semantically similar enough to be considered correct. Respond with just 'true' for correct or 'false' for incorrect."
+                content: "You are a vocabulary test grader. Compare the user's answer with the correct answer and determine if they are similar enough to be considered correct. The answer should be considered correct if: 1) it contains any of the key words from the correct answer, or 2) it has a very similar meaning in the dictionary sense. Respond with a JSON object containing 'correct' (boolean) and 'explanation' (string) fields."
               }, {
                 role: "user",
-                content: `Compare these two meanings and determine if they are semantically similar enough to be considered the same:\nCorrect answer: "${word.answer}"\nUser's answer: "${word.userInput}"`
+                content: `Compare these two meanings and determine if they are similar enough to be considered correct:\nCorrect answer: "${word.answer}"\nUser's answer: "${word.userInput}"`
               }]
             })
           });
@@ -312,18 +368,55 @@
           }
 
           const data = await response.json();
-          const isCorrect = data.choices[0].message.content.trim().toLowerCase() === 'true';
+          const result = JSON.parse(data.choices[0].message.content.trim());
 
-          return { correct: isCorrect };
+          return {
+            correct: result.correct,
+            explanation: result.explanation
+          };
         })
       );
 
       scores = results;
+
+      // 퀴즈 결과 저장
+      if (browser && supabase) {
+        const { data: quizData, error: quizError } = await supabase
+          .from('quiz_history')
+          .insert([{
+            list_id: selectedListId,
+            score: results.filter(r => r.correct).length,
+            total_questions: results.length
+          }])
+          .select()
+          .single();
+
+        if (quizError) {
+          console.error('Error saving quiz history:', quizError);
+        } else {
+          // 개별 답안 저장
+          const quizAnswers = quizWords.map((word, index) => ({
+            quiz_id: quizData.id,
+            user_answer: word.userInput,
+            is_correct: results[index].correct,
+            explanation: results[index].explanation
+          }));
+
+          const { error: answersError } = await supabase
+            .from('quiz_answers')
+            .insert(quizAnswers);
+
+          if (answersError) {
+            console.error('Error saving quiz answers:', answersError);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error checking answers:', error);
       // GPT API 호출 실패 시 기존 방식으로 채점
       scores = quizWords.map(word => ({
-        correct: word.userInput.toLowerCase().trim() === word.answer.toLowerCase().trim()
+        correct: word.userInput.toLowerCase().trim() === word.answer.toLowerCase().trim(),
+        explanation: '단순 문자열 비교로 채점되었습니다.'
       }));
     }
     showResults = true;
@@ -346,64 +439,67 @@
       }
     }
   };
+
+  async function handleSelectList(event: CustomEvent<string>) {
+    const listId = event.detail;
+    selectedListId = listId;
+    await loadVocabularyWords(listId);
+  }
 </script>
 
-<div class="min-h-screen bg-pink-50 flex flex-col">
-  <div class="container mx-auto px-4 py-12 flex-1">
-    <h1 class="text-3xl font-bold mb-12 text-center text-pink-600">
-      ✨ 꾜리의 Power 단어공부 ✨
-    </h1>
-    
-    <!-- 단어장 목록 섹션 -->
-    <VocabularyLists
-      bind:vocabularyLists
-      bind:selectedListId
-      bind:showNewListModal
-      on:select={(event) => loadVocabularyWords(event.detail)}
-      on:delete={event => handleDeleteList(event.detail)}
-      on:edit={event => handleEditList(event.detail)}
-    />
+<div class="container mx-auto px-4 py-8">
+  <VocabularyLists
+    {vocabularyLists}
+    {selectedListId}
+    {showNewListModal}
+    {showNewGroupModal}
+    on:select={handleSelectList}
+    on:delete={handleDeleteList}
+    on:edit={handleEditList}
+    on:newGroup={() => showNewGroupModal = true}
+    on:newList={() => showNewListModal = true}
+  />
 
-    <!-- 파일 업로드 섹션 -->
-    {#if selectedListId}
-      <div class="mb-8">
-        <div class="flex justify-between items-center mb-4">
-          <div>
-            <h2 class="text-xl font-bold text-pink-600">📝 단어 관리</h2>
-            <p class="text-sm text-gray-600 mt-1">엑셀 파일로 한 번에 여러 단어를 추가하거나, 직접 입력할 수 있어요!</p>
-          </div>
-          <div class="space-x-4">
-            <label class="inline-block">
-              <span class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm cursor-pointer">
-                📥 엑셀 파일로 추가
-              </span>
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                on:change={handleFileUpload}
-                bind:this={fileInput}
-                class="hidden"
-              />
-            </label>
-            <button
-              on:click={() => showNewWordModal = true}
-              class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
-            >
-              ✏️ 직접 입력하기
-            </button>
-          </div>
+  <!-- 파일 업로드 섹션 -->
+  {#if selectedListId}
+    <div class="mb-8">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="text-xl font-bold text-pink-600">📝 단어 관리</h2>
+          <p class="text-sm text-gray-600 mt-1">엑셀 파일로 한 번에 여러 단어를 추가하거나, 직접 입력할 수 있어요!</p>
+        </div>
+        <div class="space-x-4">
+          <label class="inline-block">
+            <span class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm cursor-pointer">
+              📥 엑셀 파일로 추가
+            </span>
+            <input
+              type="file"
+              accept=".xlsx,.xls"
+              on:change={handleFileUpload}
+              bind:this={fileInput}
+              class="hidden"
+            />
+          </label>
+          <button
+            on:click={() => showNewWordModal = true}
+            class="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full text-sm"
+          >
+            ✏️ 직접 입력하기
+          </button>
         </div>
       </div>
-    {/if}
+    </div>
+  {/if}
 
-    <!-- 단어 목록 섹션 -->
-    <VocabularyTable
-      {vocabularyData}
-      {headers}
-      {selectedListId}
-      on:quiz={generateQuiz}
-    />
-  </div>
+  <!-- 단어 목록 섹션 -->
+  <VocabularyTable
+    {vocabularyData}
+    {headers}
+    {selectedListId}
+    {selectedList}
+    on:quiz={generateQuiz}
+  />
 </div>
 
 <!-- Modals -->
@@ -457,20 +553,17 @@
   on:save={saveVocabularyList}
 />
 
-<style>
-  .container {
-    max-width: 1200px;
-  }
+<NewGroupModal
+  bind:show={showNewGroupModal}
+  on:add={handleAddGroup}
+/>
 
-  input[type="file"] {
-    position: relative;
+<style>
+  :global(.container) {
+    max-width: 1200px;
   }
 
   input[type="file"]::file-selector-button {
     cursor: pointer;
-  }
-
-  :global(body) {
-    background-color: #fdf2f8;
   }
 </style>

@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount } from 'svelte';
+  import { slide } from 'svelte/transition';
+  import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
   
   export let show = false;
   export let quizWords: { word: string; answer: string; userInput: string }[] = [];
   export let currentQuizIndex = 0;
   export let showResults = false;
-  export let scores: { correct: boolean }[] = [];
+  export let scores: { correct: boolean; explanation?: string }[] = [];
   
   const dispatch = createEventDispatcher();
   
@@ -13,6 +15,7 @@
   let tempInput = '';
   let isComposing = false;
   let isFocused = false;
+  let isChecking = false;
 
   function handleClose() {
     dispatch('close');
@@ -36,12 +39,85 @@
     tempInput = quizWords[currentQuizIndex - 1]?.userInput || '';
   }
 
+  async function checkAnswer(word: string, userAnswer: string, correctAnswer: string) {
+    const messages: ChatMessage[] = [{
+      role: "system",
+      content: "You are a vocabulary test grader. Compare the user's answer with the correct answer and determine if they are similar enough to be considered correct. The answer should be considered correct if: 1) it contains any of the key words from the correct answer, or 2) it has a very similar meaning in the dictionary sense. Respond with ONLY a JSON object in this exact format: {\"correct\": boolean, \"explanation\": string}. No markdown formatting or additional text."
+    }, {
+      role: "user",
+      content: `Compare these two meanings and determine if they are similar enough to be considered correct:\nCorrect answer: "${correctAnswer}"\nUser's answer: "${userAnswer}"`
+    }];
+
+    try {
+      const response = await createChatCompletion(messages);
+      
+      try {
+        // Remove any potential markdown formatting or extra text
+        const cleanJson = response.message
+          .replace(/```json\n?|\n?```/g, '') // Remove markdown code blocks
+          .replace(/^[\s\n]*{/, '{')  // Remove leading whitespace before {
+          .replace(/}[\s\n]*$/, '}')  // Remove trailing whitespace after }
+          .trim();
+
+        // Try to find a valid JSON object if the response contains additional text
+        const jsonMatch = cleanJson.match(/\{[^]*\}/);
+        if (jsonMatch) {
+          const result = JSON.parse(jsonMatch[0]);
+          if (typeof result.correct === 'boolean' && typeof result.explanation === 'string') {
+            return result;
+          }
+        }
+        
+        // Fallback to simple string comparison if JSON parsing fails
+        return {
+          correct: userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim(),
+          explanation: '단순 문자열 비교로 채점되었습니다.'
+        };
+      } catch (error) {
+        console.error('Error parsing response:', error);
+        console.log('Raw response:', response.message);
+        // Fallback to simple string comparison
+        return {
+          correct: userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim(),
+          explanation: '단순 문자열 비교로 채점되었습니다.'
+        };
+      }
+    } catch (error) {
+      console.error('Error checking answer:', error);
+      // Fallback to simple string comparison
+      return {
+        correct: userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim(),
+        explanation: '단순 문자열 비교로 채점되었습니다.'
+      };
+    }
+  }
+
   async function handleCheckAnswers() {
     // 채점 전에 현재 입력값 저장
     if (tempInput.trim()) {
       quizWords[currentQuizIndex].userInput = tempInput;
     }
-    dispatch('check');
+
+    isChecking = true;
+    try {
+      const results = await Promise.all(
+        quizWords.map(word => 
+          checkAnswer(word.word, word.userInput || '', word.answer)
+        )
+      );
+      scores = results;
+      showResults = true;
+    } catch (error) {
+      console.error('Error checking answers:', error);
+      // 에러 발생 시 기존 방식으로 채점
+      scores = quizWords.map(word => ({
+        correct: word.userInput?.toLowerCase().trim() === word.answer.toLowerCase().trim(),
+        explanation: '단순 문자열 비교로 채점되었습니다.'
+      }));
+      showResults = true;
+    } finally {
+      isChecking = false;
+    }
   }
 
   function handleCompositionStart() {
@@ -82,6 +158,19 @@
       tempInput = quizWords[currentQuizIndex]?.userInput || '';
     }
   }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && show) {
+      handleClose();
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('keydown', handleKeydown);
+    };
+  });
 </script>
 
 {#if show}
@@ -141,9 +230,14 @@
             {#if currentQuizIndex === quizWords.length - 1}
               <button
                 on:click={handleCheckAnswers}
-                class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full"
+                disabled={isChecking}
+                class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full disabled:opacity-50"
               >
-                채점하기 ✨
+                {#if isChecking}
+                  <span class="animate-spin inline-block mr-2">🔄</span> 채점 중...
+                {:else}
+                  채점하기 ✨
+                {/if}
               </button>
             {:else}
               <button
@@ -172,6 +266,9 @@
                   {#if !scores[i].correct}
                     <p class="text-gray-500 text-xs mt-1">정답: {word.answer}</p>
                   {/if}
+                  {#if scores[i].explanation}
+                    <p class="text-gray-500 text-xs mt-1 italic">{scores[i].explanation}</p>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -184,7 +281,7 @@
               {#if scores.filter(s => s.correct).length === scores.length}
                 🎉 완벽해요! 정말 잘했어요! 🎉
               {:else if scores.filter(s => s.correct).length >= scores.length * 0.7}
-                ⭐ 잘했어요! 조금만 더 노력해봐요! ⭐
+                ⭐ 잘했어요! 조금만 더 더력해봐요! ⭐
               {:else}
                 💪 다음에는 더 잘할 수 있을 거예요! 💪
               {/if}
