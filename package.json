@@ -38,6 +38,7 @@
 		"@tailwindcss/typography": "^0.5.15",
 		"compromise": "^14.14.3",
 		"word-definition": "^2.1.6",
+		"word-list": "^4.1.0",
 		"xlsx": "^0.18.5"
 	}
 }
