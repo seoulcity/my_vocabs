@@ -2,6 +2,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import '../app.css';
+
+	$: currentPath = $page?.url?.pathname || '/';
 </script>
 
 <div class="min-h-screen bg-pink-50 flex flex-col">
@@ -17,13 +19,13 @@
 				<div class="flex space-x-4">
 					<a
 						href="/"
-						class="px-4 py-2 rounded-full transition-colors duration-200 {$page.url.pathname === '/' ? 'bg-pink-500 text-white' : 'text-pink-600 hover:bg-pink-50'}"
+						class="px-4 py-2 rounded-full transition-colors duration-200 {currentPath === '/' ? 'bg-pink-500 text-white' : 'text-pink-600 hover:bg-pink-50'}"
 					>
 						📚 단어장
 					</a>
 					<a
 						href="/wrong-answers"
-						class="px-4 py-2 rounded-full transition-colors duration-200 {$page.url.pathname === '/wrong-answers' ? 'bg-pink-500 text-white' : 'text-pink-600 hover:bg-pink-50'}"
+						class="px-4 py-2 rounded-full transition-colors duration-200 {currentPath === '/wrong-answers' ? 'bg-pink-500 text-white' : 'text-pink-600 hover:bg-pink-50'}"
 					>
 						📝 오답 노트
 					</a>

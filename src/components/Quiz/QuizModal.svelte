@@ -18,6 +18,7 @@
   export let quizTitle = '단어 시험';
   export let vocabularyData: any[] = [];
   export let selectedListId: string | null = null;
+  export let isWrongAnswersQuiz = false;
   
   const dispatch = createEventDispatcher();
 
@@ -318,7 +319,7 @@
 </script>
 
 {#if show}
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[100]">
     <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold text-pink-600">
@@ -336,27 +337,37 @@
         <div class="space-y-6">
           <div class="text-center">
             <p class="text-lg text-gray-700 mb-4">몇 개의 문제를 푸시겠습니까?</p>
+            {#if isWrongAnswersQuiz}
+              <p class="text-sm text-gray-500 mb-4">
+                ℹ️ 오답노트 퀴즈는 시험 기록이 남지 않습니다
+              </p>
+            {/if}
             <div class="grid grid-cols-3 gap-3 max-w-md mx-auto">
-              <button
-                class="px-6 py-3 rounded-full {quizCount === -1 ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
-                on:click={() => quizCount = -1}
-              >
-                전체
-              </button>
-              {#each [5, 10, 15, 20, 25, 30] as count}
+              {#if vocabularyData.length > 0}
                 <button
-                  class="px-6 py-3 rounded-full {quizCount === count ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
-                  on:click={() => quizCount = count}
+                  class="px-6 py-3 rounded-full {quizCount === -1 ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+                  on:click={() => quizCount = -1}
                 >
-                  {count}개
+                  전체 ({vocabularyData.length}개)
                 </button>
-              {/each}
+                {#each Array.from({ length: Math.floor(Math.min(vocabularyData.length, 30) / 5) }, (_, i) => (i + 1) * 5) as count}
+                  <button
+                    class="px-6 py-3 rounded-full {quizCount === count ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+                    on:click={() => quizCount = count}
+                  >
+                    {count}개
+                  </button>
+                {/each}
+              {:else}
+                <p class="col-span-3 text-gray-500">시험 볼 단어가 없습니다.</p>
+              {/if}
             </div>
           </div>
           <div class="flex justify-center mt-6">
             <button
               on:click={startQuiz}
-              class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full"
+              disabled={vocabularyData.length === 0}
+              class="bg-pink-500 hover:bg-pink-600 text-white font-medium py-2 px-6 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               시험 시작하기 ✨
             </button>
@@ -499,6 +510,24 @@
                 💪 다음에는 더 잘할 수 있을 거예요! 💪
               {/if}
             </p>
+            {#if isWrongAnswersQuiz && scores.some(s => s.correct)}
+              <div class="mt-8">
+                <button
+                  on:click={() => {
+                    const correctWords = quizWords
+                      .filter((_, i) => scores[i].correct)
+                      .map(word => ({
+                        word: word.word,
+                        answer: word.answer
+                      }));
+                    dispatch('batchCorrect', { words: correctWords });
+                  }}
+                  class="bg-pink-100 hover:bg-pink-200 text-pink-600 font-medium py-2 px-6 rounded-full"
+                >
+                  맞춘 답안을 일괄 정답처리(오답노트에서 지우기)할까요? 🎯
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -506,7 +535,7 @@
   </div>
 
   {#if showSubmitConfirm}
-    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style="z-index: 60;">
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[110]">
       <div class="bg-white rounded-lg p-6 max-w-sm w-full shadow-xl text-center">
         <h3 class="text-xl font-bold mb-4 text-gray-800">시험을 제출하시겠습니까?</h3>
         <p class="text-gray-600 mb-6">

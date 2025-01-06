@@ -1,3 +1,4 @@
+<!-- src/components/wrong-answers/ScoreAnimation.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { flip } from 'svelte/animate';
