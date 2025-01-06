@@ -1,7 +1,7 @@
 <!-- src/components/NewWordModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
+  import { createChatCompletion, type ChatMessage } from '../../lib/services/openai';
   import { slide } from 'svelte/transition';
   
   export let show = false;

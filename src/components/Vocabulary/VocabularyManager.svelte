@@ -1,3 +1,4 @@
+<!-- src/components/VocabularyManager.svelte -->
 <script lang="ts">
   import * as XLSX from 'xlsx';
   import VocabularyTable from './VocabularyTable.svelte';

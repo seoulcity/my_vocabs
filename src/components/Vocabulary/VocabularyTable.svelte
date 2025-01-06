@@ -1,7 +1,7 @@
 <!-- src/components/VocabularyTable.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
+  import { createChatCompletion, type ChatMessage } from '../../lib/services/openai';
   import { createClient } from '@supabase/supabase-js';
   import { onMount } from 'svelte';
   

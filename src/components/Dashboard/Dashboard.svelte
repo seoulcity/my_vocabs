@@ -1,3 +1,4 @@
+<!-- src/components/Dashboard.svelte -->
 <script lang="ts">
   import { createClient } from '@supabase/supabase-js';
   import { browser } from '$app/environment';

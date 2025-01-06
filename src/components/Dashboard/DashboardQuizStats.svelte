@@ -1,3 +1,4 @@
+<!-- src/components/Dashboard/DashboardQuizStats.svelte -->
 <script lang="ts">
   export let quizStats: {
     totalQuizzes: number;

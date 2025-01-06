@@ -3,6 +3,8 @@
   import { onMount } from 'svelte';
   import { createClient } from '@supabase/supabase-js';
   import { browser } from '$app/environment';
+  import CorrectAnswerButton from '../../components/wrong-answers/CorrectAnswerButton.svelte';
+  import ScoreAnimation from '../../components/wrong-answers/ScoreAnimation.svelte';
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -33,6 +35,8 @@
     user_answer: string;
     is_correct: boolean;
     explanation: string;
+    quiz_title?: string;
+    quiz_date?: string;
     vocabulary_words: {
       word: string;
       meaning: string;
@@ -241,6 +245,14 @@
     }
   }
 
+  async function updateQuizScore(quizId: string) {
+    const quiz = quizHistory.find(q => q.id === quizId);
+    if (quiz) {
+      quiz.score += 1;
+      quizHistory = quizHistory;
+    }
+  }
+
   $: filteredAnswers = showAllWrongAnswers 
     ? Object.values(wrongAnswers).flat()
     : (wrongAnswers[selectedQuizId] || []);
@@ -283,27 +295,27 @@
           </div>
           <div class="space-y-4 {showAllWrongAnswers ? 'opacity-50' : ''}">
             {#each quizHistory as quiz}
-              <div
-                class="relative w-full text-left p-4 rounded-lg border-2 transition-colors duration-200 cursor-pointer group
-                  {selectedQuizId === quiz.id
-                    ? 'border-pink-500 bg-pink-50'
-                    : 'border-gray-200 hover:border-pink-300 hover:bg-pink-50'}"
-                on:click={() => !showAllWrongAnswers && handleQuizSelect(quiz.id)}
-              >
-                <div class="flex justify-between items-start">
-                  <div>
-                    <p class="font-medium text-gray-800">{quiz.vocabulary_lists.title}</p>
-                    <p class="text-sm text-gray-600 mt-1">
-                      {formatDate(quiz.created_at)}
-                    </p>
-                  </div>
-                  <div class="text-right">
-                    <p class="font-bold text-pink-600">
-                      {quiz.score} / {quiz.total_questions}
-                    </p>
-                    <p class="text-sm text-gray-600 mt-1">
-                      {Math.round((quiz.score / quiz.total_questions) * 100)}%
-                    </p>
+              <div class="relative">
+                <div
+                  class="w-full text-left p-4 rounded-lg border-2 transition-colors duration-200 cursor-pointer group
+                    {selectedQuizId === quiz.id
+                      ? 'border-pink-500 bg-pink-50'
+                      : 'border-gray-200 hover:border-pink-300 hover:bg-pink-50'}"
+                  on:click={() => !showAllWrongAnswers && handleQuizSelect(quiz.id)}
+                  on:keydown={(e) => e.key === 'Enter' && !showAllWrongAnswers && handleQuizSelect(quiz.id)}
+                  role="button"
+                  tabindex="0"
+                >
+                  <div class="flex justify-between items-start">
+                    <div>
+                      <p class="font-medium text-gray-800">{quiz.vocabulary_lists.title}</p>
+                      <p class="text-sm text-gray-600 mt-1">
+                        {formatDate(quiz.created_at)}
+                      </p>
+                    </div>
+                    <div class="text-right">
+                      <ScoreAnimation score={quiz.score} total={quiz.total_questions} />
+                    </div>
                   </div>
                 </div>
                 <button
@@ -313,6 +325,7 @@
                     showDeleteConfirm = true;
                   }}
                   title="시험 기록 삭제"
+                  type="button"
                 >
                   🗑️
                 </button>
@@ -370,6 +383,24 @@
                           </p>
                         {/if}
                       </div>
+                    </div>
+                    <div>
+                      <CorrectAnswerButton
+                        answerId={answer.id}
+                        quizId={answer.quiz_id}
+                        onAnswerMarkedCorrect={() => {
+                          if (showAllWrongAnswers) {
+                            Object.keys(wrongAnswers).forEach(quizId => {
+                              wrongAnswers[quizId] = wrongAnswers[quizId].filter(a => a.id !== answer.id);
+                            });
+                            wrongAnswers = wrongAnswers;
+                          } else {
+                            wrongAnswers[selectedQuizId] = wrongAnswers[selectedQuizId].filter(a => a.id !== answer.id);
+                            wrongAnswers = wrongAnswers;
+                          }
+                        }}
+                        onQuizScoreUpdate={updateQuizScore}
+                      />
                     </div>
                   </div>
                 </div>

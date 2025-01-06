@@ -2,15 +2,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { createClient } from '@supabase/supabase-js';
-  import NewListModal from '../components/NewListModal.svelte';
-  import NewWordModal from '../components/NewWordModal.svelte';
-  import QuizModal from '../components/QuizModal.svelte';
-  import ColumnMappingModal from '../components/ColumnMappingModal.svelte';
-  import VocabularyLists from '../components/VocabularyLists.svelte';
+  import NewListModal from '../components/Groups_and_Lists/NewListModal.svelte';
+  import NewWordModal from '../components/Groups_and_Lists/NewWordModal.svelte';
+  import QuizModal from '../components/Quiz/QuizModal.svelte';
+  import ColumnMappingModal from '../components/Vocabulary/ColumnMappingModal.svelte';
+  import VocabularyLists from '../components/Vocabulary/VocabularyLists.svelte';
   import { browser } from '$app/environment';
-  import NewGroupModal from '../components/NewGroupModal.svelte';
-  import VocabularyManager from '../components/VocabularyManager.svelte';
-  import Dashboard from '../components/Dashboard.svelte';
+  import NewGroupModal from '../components/Groups_and_Lists/NewGroupModal.svelte';
+  import VocabularyManager from '../components/Vocabulary/VocabularyManager.svelte';
+  import Dashboard from '../components/Dashboard/Dashboard.svelte';
 
   // 환경 변수 체크
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;

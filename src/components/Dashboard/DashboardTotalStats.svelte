@@ -1,3 +1,4 @@
+<!-- src/components/Dashboard/DashboardTotalStats.svelte -->
 <script lang="ts">
   export let totalStats: {
     totalLists: number;

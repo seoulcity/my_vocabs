@@ -1,7 +1,7 @@
 <!-- src/components/QuizModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
+  import { createChatCompletion, type ChatMessage } from '../../lib/services/openai';
   import { createClient } from '@supabase/supabase-js';
   
   export let show = false;

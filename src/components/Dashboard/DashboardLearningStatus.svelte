@@ -1,3 +1,4 @@
+<!-- src/components/DashboardLearningStatus.svelte -->
 <script lang="ts">
   export let totalWords: number;
   export let recentWords: {

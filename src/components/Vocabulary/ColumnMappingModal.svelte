@@ -22,39 +22,6 @@
 
   let vocabularyData: Record<string, any>[] = [];
 
-  const handleFileUpload = async (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    
-    if (!file || !selectedListId) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
-      vocabularyData = jsonData;
-      
-      if (jsonData.length > 0) {
-        headers = Object.keys(jsonData[0]);
-        // 컬럼 매핑 초기화
-        columnMapping = {
-          word: '',
-          partOfSpeech: '',
-          meaning: '',
-          example: ''
-        };
-        show = true;
-      }
-    };
-    
-    reader.readAsArrayBuffer(file);
-  };
-
   // 데이터베이스에 단어장 저장
   const saveVocabularyList = async () => {
     try {
@@ -100,8 +67,11 @@
       <h2 class="text-2xl font-bold text-pink-600 mb-6">📝 컬럼 매핑</h2>
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">단어 컬럼</label>
+          <label 
+            for="word-column" 
+            class="block text-sm font-medium text-gray-700 mb-1">단어 컬럼</label>
           <select
+            id="word-column"
             bind:value={columnMapping.word}
             class="w-full p-2 border rounded-lg"
           >
@@ -112,8 +82,11 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">품사 컬럼</label>
+          <label 
+            for="pos-column"
+            class="block text-sm font-medium text-gray-700 mb-1">품사 컬럼</label>
           <select
+            id="pos-column"
             bind:value={columnMapping.partOfSpeech}
             class="w-full p-2 border rounded-lg"
           >
@@ -124,8 +97,11 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">의미 컬럼</label>
+          <label 
+            for="meaning-column"
+            class="block text-sm font-medium text-gray-700 mb-1">의미 컬럼</label>
           <select
+            id="meaning-column"
             bind:value={columnMapping.meaning}
             class="w-full p-2 border rounded-lg"
           >
@@ -136,8 +112,11 @@
           </select>
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">예문 컬럼</label>
+          <label 
+            for="example-column"
+            class="block text-sm font-medium text-gray-700 mb-1">예문 컬럼</label>
           <select
+            id="example-column"
             bind:value={columnMapping.example}
             class="w-full p-2 border rounded-lg"
           >
