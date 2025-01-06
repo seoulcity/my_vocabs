@@ -223,7 +223,7 @@
     const count = event.detail;
     const shuffled = [...vocabularyData]
       .sort(() => Math.random() - 0.5)
-      .slice(0, count)
+      .slice(0, count === -1 ? vocabularyData.length : count)
       .map(item => ({
         word: item.word,
         answer: item.meaning,

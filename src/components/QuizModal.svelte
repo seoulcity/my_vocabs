@@ -261,6 +261,12 @@
           <div class="text-center">
             <p class="text-lg text-gray-700 mb-4">몇 개의 문제를 푸시겠습니까?</p>
             <div class="grid grid-cols-3 gap-3 max-w-md mx-auto">
+              <button
+                class="px-6 py-3 rounded-full {quizCount === -1 ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
+                on:click={() => quizCount = -1}
+              >
+                전체
+              </button>
               {#each [5, 10, 15, 20, 25, 30] as count}
                 <button
                   class="px-6 py-3 rounded-full {quizCount === count ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}"
