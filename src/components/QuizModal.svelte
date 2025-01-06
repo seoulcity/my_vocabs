@@ -1,8 +1,8 @@
 <!-- src/components/QuizModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { slide } from 'svelte/transition';
   import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
+  import { createClient } from '@supabase/supabase-js';
   
   export let show = false;
   export let quizWords: { 
@@ -16,9 +16,15 @@
   export let showResults = false;
   export let scores: { correct: boolean; explanation?: string }[] = [];
   export let quizTitle = '단어 시험';
+  export let vocabularyData: any[] = [];
+  export let selectedListId: string | null = null;
   
   const dispatch = createEventDispatcher();
-  
+
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   let tempInput = '';
   let isComposing = false;
   let isFocused = false;
@@ -37,31 +43,54 @@
 
   function startQuiz() {
     showQuizSetup = false;
-    dispatch('updateCount', quizCount);
+    updateQuizCount(quizCount);
+  }
+
+  function updateQuizCount(count: number) {
+    const shuffled = [...vocabularyData]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, count === -1 ? vocabularyData.length : count)
+      .map(item => ({
+        word: item.word,
+        answer: item.meaning,
+        example: item.example,
+        example_translation: item.example_translation,
+        userInput: ''
+      }));
+
+    quizWords = shuffled;
+    currentQuizIndex = 0;
+    showResults = false;
+    scores = [];
+    dispatch('updateCount', count);
   }
 
   function handleNext() {
     if (tempInput.trim()) {
       quizWords[currentQuizIndex].userInput = tempInput;
     }
+    if (currentQuizIndex < quizWords.length - 1) {
+      currentQuizIndex++;
+      tempInput = quizWords[currentQuizIndex]?.userInput || '';
+    }
     dispatch('next');
-    // 다음 문제로 넘어갈 때 임시 입력값 초기화
-    tempInput = quizWords[currentQuizIndex + 1]?.userInput || '';
   }
 
   function handlePrevious() {
     if (tempInput.trim()) {
       quizWords[currentQuizIndex].userInput = tempInput;
     }
+    if (currentQuizIndex > 0) {
+      currentQuizIndex--;
+      tempInput = quizWords[currentQuizIndex]?.userInput || '';
+    }
     dispatch('previous');
-    // 이전 문제로 돌아갈 때 임시 입력값 초기화
-    tempInput = quizWords[currentQuizIndex - 1]?.userInput || '';
   }
 
-  function handleSubmitConfirm() {
+  async function handleSubmitConfirm() {
     showSubmitConfirm = false;
     isChecking = true;
-    dispatch('check');
+    await checkAnswers();
   }
 
   async function checkAnswer(word: string, userAnswer: string, correctAnswer: string) {
@@ -117,7 +146,7 @@
     }
   }
 
-  async function handleCheckAnswers() {
+  async function checkAnswers() {
     // 채점 전에 현재 입력값 저장
     if (tempInput.trim()) {
       quizWords[currentQuizIndex].userInput = tempInput;
@@ -131,7 +160,53 @@
         )
       );
       scores = results;
-      showResults = true;
+
+      // 퀴즈 결과 저장
+      if (selectedListId) {
+        console.log('Saving quiz results...', {
+          listId: selectedListId,
+          score: results.filter(r => r.correct).length,
+          total: results.length
+        });
+
+        const { data: quizData, error: quizError } = await supabase
+          .from('quiz_history')
+          .insert([{
+            list_id: selectedListId,
+            score: results.filter(r => r.correct).length,
+            total_questions: results.length
+          }])
+          .select()
+          .single();
+
+        if (quizError) {
+          console.error('Error saving quiz history:', quizError);
+        } else {
+          console.log('Quiz history saved successfully:', quizData);
+          
+          // 개별 답안 저장
+          const quizAnswers = quizWords.map((word, index) => {
+            // 단어 ID 찾기
+            const vocabularyWord = vocabularyData.find(v => v.word === word.word);
+            
+            return {
+              quiz_id: quizData.id,
+              word_id: vocabularyWord?.id,
+              user_answer: word.userInput,
+              is_correct: results[index].correct,
+              explanation: results[index].explanation
+            };
+          });
+
+          const { error: answersError } = await supabase
+            .from('quiz_answers')
+            .insert(quizAnswers);
+
+          if (answersError) {
+            console.error('Error saving quiz answers:', answersError);
+          }
+        }
+      }
     } catch (error) {
       console.error('Error checking answers:', error);
       // 에러 발생 시 기존 방식으로 채점
@@ -139,10 +214,11 @@
         correct: word.userInput?.toLowerCase().trim() === word.answer.toLowerCase().trim(),
         explanation: '단순 문자열 비교로 채점되었습니다.'
       }));
-      showResults = true;
     } finally {
       isChecking = false;
+      showResults = true;
     }
+    dispatch('check');
   }
 
   function handleCompositionStart() {
@@ -177,6 +253,12 @@
     isFocused = false;
   }
 
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && show) {
+      handleClose();
+    }
+  }
+
   // 현재 문제가 바뀔 때마다 임시 입력값 초기화
   $: {
     if (show && !showResults) {
@@ -184,12 +266,6 @@
     }
     if (showResults) {
       isChecking = false;
-    }
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && show) {
-      handleClose();
     }
   }
 

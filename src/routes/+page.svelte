@@ -1,14 +1,12 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import * as XLSX from 'xlsx';
   import { createClient } from '@supabase/supabase-js';
   import NewListModal from '../components/NewListModal.svelte';
   import NewWordModal from '../components/NewWordModal.svelte';
   import QuizModal from '../components/QuizModal.svelte';
   import ColumnMappingModal from '../components/ColumnMappingModal.svelte';
   import VocabularyLists from '../components/VocabularyLists.svelte';
-  import VocabularyTable from '../components/VocabularyTable.svelte';
   import { browser } from '$app/environment';
   import NewGroupModal from '../components/NewGroupModal.svelte';
   import VocabularyManager from '../components/VocabularyManager.svelte';
@@ -35,8 +33,6 @@
   let vocabularyData: Record<string, any>[] = [];
   let headers: string[] = [];
   let showModal = false;
-  let quizWords: { word: string; answer: string; userInput: string }[] = [];
-  let currentQuizIndex = 0;
   let showResults = false;
   let scores: { correct: boolean }[] = [];
   
@@ -94,73 +90,6 @@
     }
   }
 
-  const handleFileUpload = async (event: Event) => {
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0];
-    
-    if (!file || !selectedListId) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
-      
-      const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
-      vocabularyData = jsonData;
-      
-      if (jsonData.length > 0) {
-        headers = Object.keys(jsonData[0]);
-        // 컬럼 매핑 초기화
-        columnMapping = {
-          word: '',
-          partOfSpeech: '',
-          meaning: '',
-          example: ''
-        };
-        showMappingModal = true;
-      }
-    };
-    
-    reader.readAsArrayBuffer(file);
-  };
-
-  // 데이터베이스에 단어장 저장
-  const saveVocabularyList = async () => {
-    if (!browser || !supabase) return;
-    
-    try {
-      if (!selectedListId) return;
-
-      // 매핑된 컬럼을 사용하여 단어 데이터 변환
-      const wordsToInsert = vocabularyData.map(row => ({
-        list_id: selectedListId,
-        word: row[columnMapping.word],
-        part_of_speech: row[columnMapping.partOfSpeech] || null,
-        meaning: row[columnMapping.meaning],
-        example: row[columnMapping.example] || null
-      }));
-
-      // 단어 데이터 저장
-      const { error: wordsError } = await supabase
-        .from('vocabulary_words')
-        .insert(wordsToInsert);
-
-      if (wordsError) throw wordsError;
-
-      alert('단어가 성공적으로 추가되었습니다!');
-      showMappingModal = false;
-      
-      // 테이블 새로고침을 위한 데이터 다시 로드
-      await loadVocabularyWords(selectedListId);
-    } catch (error) {
-      console.error('Error saving vocabulary:', error);
-      alert('단어 저장 중 오류가 발생했습니다.');
-    }
-  };
-
   // 단어장 목록 로드
   const loadVocabularyList = async () => {
     if (!browser || !supabase) return;
@@ -217,158 +146,6 @@
     vocabularyData = data;
     quizTitle = `${group.title} - 그룹 단어 시험`;
     showModal = true;
-  };
-
-  const updateQuizCount = (event: CustomEvent<number>) => {
-    const count = event.detail;
-    const shuffled = [...vocabularyData]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, count === -1 ? vocabularyData.length : count)
-      .map(item => ({
-        word: item.word,
-        answer: item.meaning,
-        example: item.example,
-        example_translation: item.example_translation,
-        userInput: ''
-      }));
-
-    quizWords = shuffled;
-    currentQuizIndex = 0;
-    showResults = false;
-    scores = [];
-  };
-
-  const handleNext = () => {
-    if (currentQuizIndex < quizWords.length - 1) {
-      currentQuizIndex++;
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentQuizIndex > 0) {
-      currentQuizIndex--;
-    }
-  };
-
-  const checkAnswers = async () => {
-    try {
-      const results = await Promise.all(
-        quizWords.map(async (word) => {
-          const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`
-            },
-            body: JSON.stringify({
-              model: "gpt-3.5-turbo",
-              messages: [{
-                role: "system",
-                content: "You are a vocabulary test grader. Compare the user's answer with the correct answer and determine if they are similar enough to be considered correct. The answer should be considered correct if: 1) it contains any of the key words from the correct answer, or 2) it has a very similar meaning in the dictionary sense. Respond with a JSON object containing 'correct' (boolean) and 'explanation' (string) fields."
-              }, {
-                role: "user",
-                content: `Compare these two meanings and determine if they are similar enough to be considered correct:\nCorrect answer: "${word.answer}"\nUser's answer: "${word.userInput}"`
-              }]
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error('GPT API call failed');
-          }
-
-          const data = await response.json();
-          const result = JSON.parse(data.choices[0].message.content.trim());
-
-          return {
-            correct: result.correct,
-            explanation: result.explanation
-          };
-        })
-      );
-
-      scores = results;
-
-      // 퀴즈 결과 저장
-      if (browser && supabase) {
-        console.log('Saving quiz results...', {
-          listId: selectedListId,
-          score: results.filter(r => r.correct).length,
-          total: results.length
-        });
-
-        const { data: quizData, error: quizError } = await supabase
-          .from('quiz_history')
-          .insert([{
-            list_id: selectedListId,
-            score: results.filter(r => r.correct).length,
-            total_questions: results.length
-          }])
-          .select()
-          .single();
-
-        if (quizError) {
-          console.error('Error saving quiz history:', quizError);
-        } else {
-          console.log('Quiz history saved successfully:', quizData);
-          
-          // 개별 답안 저장
-          const quizAnswers = quizWords.map((word, index) => {
-            // 단어 ID 찾기
-            const vocabularyWord = vocabularyData.find(v => v.word === word.word);
-            console.log('Mapping answer for word:', {
-              word: word.word,
-              vocabularyWord,
-              userAnswer: word.userInput,
-              isCorrect: results[index].correct
-            });
-            
-            return {
-              quiz_id: quizData.id,
-              word_id: vocabularyWord?.id,
-              user_answer: word.userInput,
-              is_correct: results[index].correct,
-              explanation: results[index].explanation
-            };
-          });
-
-          console.log('Saving quiz answers:', quizAnswers);
-
-          const { error: answersError } = await supabase
-            .from('quiz_answers')
-            .insert(quizAnswers);
-
-          if (answersError) {
-            console.error('Error saving quiz answers:', answersError);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error checking answers:', error);
-      // GPT API 호출 실패 시 기존 방식으로 채점
-      scores = quizWords.map(word => ({
-        correct: word.userInput.toLowerCase().trim() === word.answer.toLowerCase().trim(),
-        explanation: '단순 문자열 비교로 채점되었습니다.'
-      }));
-    }
-    showResults = true;
-  };
-
-  const closeModal = () => {
-    showModal = false;
-    quizWords = [];
-    currentQuizIndex = 0;
-    showResults = false;
-    scores = [];
-  };
-
-  const handleKeyPress = (event: KeyboardEvent) => {
-    if (event.key === 'Enter') {
-      if (currentQuizIndex < quizWords.length - 1) {
-        handleNext();
-      } else {
-        checkAnswers();
-      }
-    }
   };
 
   async function handleSelectList(event: CustomEvent<string>) {
@@ -496,17 +273,20 @@
   };
 
   // 여러 단어 추가 처리
-  const handleAddWords = async (words: any[]) => {
+  const handleAddWords = async (event: CustomEvent) => {
     if (!browser || !supabase || !selectedListId) return;
 
+    const { words } = event.detail;
     const wordsToInsert = words.map(word => ({
       ...word,
-      list_id: selectedListId
+      list_id: selectedListId,
+      created_at: new Date().toISOString()
     }));
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('vocabulary_words')
-      .insert(wordsToInsert);
+      .insert(wordsToInsert)
+      .select();
 
     if (error) {
       console.error('Error adding words:', error);
@@ -515,7 +295,11 @@
     }
 
     showNewWordModal = false;
-    await loadVocabularyWords(selectedListId);
+    
+    // 새로 추가된 단어들을 vocabularyData의 앞부분에 추가
+    if (data) {
+      vocabularyData = [...data, ...vocabularyData];
+    }
   };
 </script>
 
@@ -588,29 +372,27 @@
 <NewWordModal
   show={showNewWordModal}
   on:close={() => showNewWordModal = false}
-  on:add={event => handleAddWords(event.detail)}
+  on:add={event => handleAddWords(event)}
 />
 
 <QuizModal
   show={showModal}
-  {quizWords}
-  {currentQuizIndex}
-  {showResults}
-  {scores}
+  {vocabularyData}
+  {selectedListId}
   {quizTitle}
-  on:close={closeModal}
-  on:next={handleNext}
-  on:previous={handlePrevious}
-  on:check={checkAnswers}
-  on:updateCount={updateQuizCount}
+  on:close={() => showModal = false}
 />
 
 <ColumnMappingModal
   show={showMappingModal}
   {headers}
+  {selectedListId}
   bind:columnMapping
   on:close={() => showMappingModal = false}
-  on:save={saveVocabularyList}
+  on:save={async () => {
+    showMappingModal = false;
+    await loadVocabularyWords(selectedListId);
+  }}
 />
 
 <NewGroupModal

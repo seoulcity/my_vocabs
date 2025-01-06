@@ -1,6 +1,8 @@
 <!-- src/components/ColumnMappingModal.svelte -->
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { createClient } from '@supabase/supabase-js';
+  import * as XLSX from 'xlsx';
   
   export let show = false;
   export let headers: string[] = [];
@@ -10,15 +12,85 @@
     meaning: '',
     example: ''
   };
+  export let selectedListId: string | null = null;
   
   const dispatch = createEventDispatcher();
+
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let vocabularyData: Record<string, any>[] = [];
+
+  const handleFileUpload = async (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    const file = target.files?.[0];
+    
+    if (!file || !selectedListId) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+      vocabularyData = jsonData;
+      
+      if (jsonData.length > 0) {
+        headers = Object.keys(jsonData[0]);
+        // 컬럼 매핑 초기화
+        columnMapping = {
+          word: '',
+          partOfSpeech: '',
+          meaning: '',
+          example: ''
+        };
+        show = true;
+      }
+    };
+    
+    reader.readAsArrayBuffer(file);
+  };
+
+  // 데이터베이스에 단어장 저장
+  const saveVocabularyList = async () => {
+    try {
+      if (!selectedListId) return;
+
+      // 매핑된 컬럼을 사용하여 단어 데이터 변환
+      const wordsToInsert = vocabularyData.map(row => ({
+        list_id: selectedListId,
+        word: row[columnMapping.word],
+        part_of_speech: row[columnMapping.partOfSpeech] || null,
+        meaning: row[columnMapping.meaning],
+        example: row[columnMapping.example] || null
+      }));
+
+      // 단어 데이터 저장
+      const { error: wordsError } = await supabase
+        .from('vocabulary_words')
+        .insert(wordsToInsert);
+
+      if (wordsError) throw wordsError;
+
+      alert('단어가 성공적으로 추가되었습니다!');
+      show = false;
+      dispatch('save');
+    } catch (error) {
+      console.error('Error saving vocabulary:', error);
+      alert('단어 저장 중 오류가 발생했습니다.');
+    }
+  };
 
   function handleClose() {
     dispatch('close');
   }
 
   function handleSave() {
-    dispatch('save', columnMapping);
+    saveVocabularyList();
   }
 </script>
 

@@ -9,13 +9,13 @@
   const dispatch = createEventDispatcher();
 
   const PARTS_OF_SPEECH = [
-    '명사(noun)',
-    '동사(verb)',
-    '형용사(adjective)',
-    '부사(adverb)',
-    '전치사(preposition)',
-    '접속사(conjunction)',
-    '감탄사(interjection)'
+    '명사',
+    '동사',
+    '형용사',
+    '부사',
+    '전치사',
+    '접속사',
+    '감탄사'
   ];
   
   type WordEntry = {
@@ -30,6 +30,11 @@
   ];
   let isGeneratingMeanings = false;
   let error: string | null = null;
+  let inputWarnings: { [key: number]: string } = {};
+
+  function createEmptyEntry() {
+    return { word: '', part_of_speech: '', meaning: '', isNew: true };
+  }
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && show) {
@@ -48,7 +53,10 @@
       .map(({ isNew, ...entry }) => entry);
     
     if (validEntries.length > 0) {
-      dispatch('add', validEntries);
+      dispatch('add', {
+        words: validEntries,
+        isNew: true
+      });
       resetForm();
     }
   }
@@ -61,15 +69,23 @@
   function handleInput(index: number, event?: Event) {
     const entry = wordEntries[index];
     
-    // 알파벳 입력 체크
     if (event && event.target instanceof HTMLInputElement && event.target.name === 'word') {
       const input = event.target;
       const value = input.value;
-      // 알파벳과 공백만 허용
-      const sanitizedValue = value.replace(/[^a-zA-Z\s]/g, '');
-      if (value !== sanitizedValue) {
+      const hasNonAlphabetic = /[^a-zA-Z\s]/.test(value);
+      
+      if (hasNonAlphabetic) {
+        inputWarnings[index] = '알파벳과 공백만 입력 가능합니다';
+        const sanitizedValue = value.replace(/[^a-zA-Z\s]/g, '');
         input.value = sanitizedValue;
         entry.word = sanitizedValue;
+        setTimeout(() => {
+          delete inputWarnings[index];
+          inputWarnings = inputWarnings;
+        }, 2000);
+      } else {
+        delete inputWarnings[index];
+        entry.word = value;
       }
     }
 
@@ -105,23 +121,41 @@
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are a helpful assistant that provides Korean meanings for English words. For each word, provide a concise and accurate Korean meaning. Respond with ONLY a JSON object where keys are English words and values are Korean meanings.'
+          content: `You are a helpful assistant that provides Korean meanings and parts of speech for English words. For each word, provide a concise Korean meaning and its part of speech. The part of speech MUST be exactly one of these values: ${PARTS_OF_SPEECH.join(', ')}. Respond with ONLY a JSON object where keys are English words and values are objects containing "meaning" (Korean meaning) and "part_of_speech" (exactly matching one of the allowed values).`
         },
         {
           role: 'user',
-          content: `Provide Korean meanings for these English words: ${wordsToTranslate.join(', ')}`
+          content: `Provide Korean meanings and parts of speech for these English words: ${wordsToTranslate.join(', ')}`
         }
       ];
 
       const response = await createChatCompletion(messages);
+      console.log('GPT Response:', response.message);
       
       try {
         const cleanJson = response.message.replace(/```json\n?|\n?```/g, '').trim();
-        const meanings = JSON.parse(cleanJson);
+        console.log('Cleaned JSON:', cleanJson);
+        const translations = JSON.parse(cleanJson);
+        console.log('Parsed translations:', translations);
+        console.log('Available PARTS_OF_SPEECH:', PARTS_OF_SPEECH);
         
         wordEntries = wordEntries.map(entry => {
-          if (entry.word.trim() && !entry.meaning.trim() && meanings[entry.word.trim()]) {
-            return { ...entry, meaning: meanings[entry.word.trim()] };
+          if (entry.word.trim() && !entry.meaning.trim() && translations[entry.word.trim()]) {
+            const translation = translations[entry.word.trim()];
+            console.log(`Processing word "${entry.word.trim()}":`, translation);
+            console.log('Received part_of_speech:', translation.part_of_speech);
+            console.log('Is part_of_speech in PARTS_OF_SPEECH?', PARTS_OF_SPEECH.includes(translation.part_of_speech));
+            
+            const part_of_speech = PARTS_OF_SPEECH.includes(translation.part_of_speech) 
+              ? translation.part_of_speech 
+              : '';
+            console.log('Final part_of_speech value:', part_of_speech);
+            
+            return {
+              ...entry,
+              meaning: translation.meaning,
+              part_of_speech
+            };
           }
           return entry;
         });
@@ -218,14 +252,21 @@
             {#each wordEntries as entry, i}
               <tr class="border-b border-pink-100">
                 <td class="px-4 py-2">
-                  <input
-                    type="text"
-                    name="word"
-                    bind:value={entry.word}
-                    on:input={(e) => handleInput(i, e)}
-                    class="w-full p-2 border rounded-lg"
-                    placeholder="단어를 입력하세요"
-                  />
+                  <div class="relative">
+                    <input
+                      type="text"
+                      name="word"
+                      bind:value={entry.word}
+                      on:input={(e) => handleInput(i, e)}
+                      class="w-full p-2 border rounded-lg"
+                      placeholder="단어를 입력하세요"
+                    />
+                    {#if inputWarnings[i]}
+                      <div class="absolute left-0 -bottom-5 text-xs text-red-500" transition:slide>
+                        {inputWarnings[i]}
+                      </div>
+                    {/if}
+                  </div>
                 </td>
                 <td class="px-4 py-2">
                   <select

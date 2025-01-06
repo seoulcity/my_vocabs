@@ -3,6 +3,7 @@
   import { createEventDispatcher } from 'svelte';
   import { createChatCompletion, type ChatMessage } from '../lib/services/openai';
   import { createClient } from '@supabase/supabase-js';
+  import { onMount } from 'svelte';
   
   const dispatch = createEventDispatcher();
   
@@ -25,6 +26,7 @@
   let currentExample: { english: string; korean: string | null } | null = null;
   let editingWord: any = null;
   let tempWord = { word: '', part_of_speech: '', meaning: '', example: '' };
+  let newlyAddedWords: Set<string> = new Set();
 
   const partsOfSpeech = [
     { value: '', label: '전체' },
@@ -38,16 +40,41 @@
     { value: 'pronoun', label: '대명사' },
   ];
 
-  $: filteredData = vocabularyData.filter(item => {
-    const matchesSearch = searchQuery === '' || 
-      item.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.meaning.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesPartOfSpeech = selectedPartOfSpeech === '' || 
-      item.part_of_speech === selectedPartOfSpeech;
-    
-    return matchesSearch && matchesPartOfSpeech;
-  });
+  // 새로운 단어 감지 및 강조
+  $: {
+    const now = new Date().getTime();
+    vocabularyData.forEach(word => {
+      // 최근 1분 이내에 생성된 단어는 새로운 단어로 표시
+      // (페이지 새로고침 시에도 최근 추가된 단어를 식별하기 위함)
+      const createdAt = new Date(word.created_at).getTime();
+      if (now - createdAt < 60000) {
+        newlyAddedWords.add(word.id);
+      }
+    });
+  }
+
+  $: filteredData = vocabularyData
+    .map(item => ({
+      ...item,
+      isNew: newlyAddedWords.has(item.id)
+    }))
+    .sort((a, b) => {
+      // 새로 추가된 단어를 먼저 정렬
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      // 그 다음 최신 순으로 정렬
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    })
+    .filter(item => {
+      const matchesSearch = searchQuery === '' || 
+        item.word.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.meaning.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesPartOfSpeech = selectedPartOfSpeech === '' || 
+        item.part_of_speech === selectedPartOfSpeech;
+      
+      return matchesSearch && matchesPartOfSpeech;
+    });
 
   $: totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
   $: paginatedData = filteredData.slice(
@@ -225,6 +252,34 @@
       alert('단어 삭제 중 오류가 발생했습니다.');
     }
   }
+
+  // 새로운 단어가 추가되었을 때의 이벤트 핸들러
+  function handleNewWords(event: CustomEvent) {
+    const newWordIds = event.detail;
+    newWordIds.forEach(id => newlyAddedWords.add(id));
+    newlyAddedWords = newlyAddedWords; // trigger reactivity
+    
+    // 2초 후에 강조 표시 제거
+    setTimeout(() => {
+      newWordIds.forEach(id => newlyAddedWords.delete(id));
+      newlyAddedWords = newlyAddedWords; // trigger reactivity
+    }, 2000);
+  }
+
+  onMount(() => {
+    // 컴포넌트가 마운트되면 이벤트 리스너 추가
+    const element = document.querySelector('vocabulary-table');
+    if (element) {
+      element.addEventListener('newWords', handleNewWords);
+    }
+
+    return () => {
+      // 컴포넌트가 언마운트되면 이벤트 리스너 제거
+      if (element) {
+        element.removeEventListener('newWords', handleNewWords);
+      }
+    };
+  });
 </script>
 
 <div class="bg-white rounded-lg shadow-sm p-6">
@@ -295,7 +350,7 @@
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
             {#each paginatedData as item}
-              <tr class="border-t hover:bg-pink-50 group">
+              <tr class="border-t hover:bg-pink-50 group {item.isNew ? 'bg-pink-50/50' : ''}">
                 {#if editingWord?.id === item.id}
                   <td class="px-4 py-3">
                     <input
@@ -338,7 +393,12 @@
                   </td>
                 {:else}
                   <td class="px-4 py-3">
-                    {item.word}
+                    <div class="flex items-center">
+                      {#if item.isNew}
+                        <span class="inline-block w-2 h-2 bg-pink-500 rounded-full mr-2"></span>
+                      {/if}
+                      {item.word}
+                    </div>
                   </td>
                   <td class="px-4 py-3 text-gray-600">{item.part_of_speech || '-'}</td>
                   <td class="px-4 py-3">{item.meaning}</td>
