@@ -45,7 +45,49 @@
     
     canvas.width = actualWidth;
     canvas.height = actualHeight;
-    clearCanvas();
+    
+    // 흰 배경 설정
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, actualWidth, actualHeight);
+    
+    // 모눈 그리기
+    drawGrid();
+  }
+
+  // 모눈 그리기 함수 추가
+  function drawGrid() {
+    const gridSize = actualHeight / 4; // 4등분 (3줄)
+    
+    ctx.beginPath();
+    ctx.strokeStyle = '#e5e7eb'; // 연한 회색
+    ctx.lineWidth = 0.5;
+
+    // 가로선 (받침선)
+    ctx.beginPath();
+    ctx.moveTo(0, actualHeight * 0.75);
+    ctx.lineTo(actualWidth, actualHeight * 0.75);
+    ctx.stroke();
+
+    // 가운데 기준선 (점선)
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(0, actualHeight * 0.5);
+    ctx.lineTo(actualWidth, actualHeight * 0.5);
+    ctx.stroke();
+
+    // 세로 모눈
+    ctx.setLineDash([]);
+    for (let x = gridSize; x < actualWidth; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, actualHeight);
+      ctx.stroke();
+    }
+
+    // 원래 펜 설정 복구
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
   }
 
   // 디바운스된 인식 함수
@@ -112,6 +154,7 @@
   function clearCanvas() {
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, actualWidth, actualHeight);
+    drawGrid(); // 모눈 다시 그리기
     hasDrawing = false;
     showRecognitionResult = false;
     recognizedText = '';

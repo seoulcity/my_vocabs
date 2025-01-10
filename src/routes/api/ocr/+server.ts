@@ -1,3 +1,4 @@
+// src/routes/api/ocr/+server.ts
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import OpenAI from 'openai';
