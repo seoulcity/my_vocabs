@@ -7,93 +7,40 @@ const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
 });
 
-export const POST: RequestHandler = async ({ request }) => {
-  const OCR_SECRET_KEY = import.meta.env.VITE_NAVER_OCR_SECRET_KEY;
-  const OCR_INVOKE_URL = import.meta.env.VITE_NAVER_OCR_INVOKE_URL;
+const PROMPTS = {
+  ko: "이 이미지에 쓰여진 한글 필기를 읽어주세요. 텍스트만 응답하고 다른 설명은 하지 마세요.",
+  en: "Read the English handwritten text in this image. Respond with ONLY the text, no additional words or explanations."
+};
 
+export const POST: RequestHandler = async ({ request }) => {
   try {
     const { imageData, lang } = await request.json();
 
-    // 영어인 경우 OpenAI Vision API 사용
-    if (lang === 'en') {
-      try {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: "What text is written in this image? Respond with ONLY the text, no additional words." },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: imageData,
-                  },
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: PROMPTS[lang] },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageData,
                 },
-              ],
-            },
-          ],
-          max_tokens: 100,
-        });
+              },
+            ],
+          },
+        ],
+        max_tokens: 100,
+      });
 
-        return json({ text: completion.choices[0].message.content || '' });
-      } catch (error) {
-        console.error('OpenAI Vision API Error:', error);
-        return new Response('OpenAI Vision API failed', { status: 500 });
-      }
+      return json({ text: completion.choices[0].message.content || '' });
+    } catch (error) {
+      console.error('OpenAI Vision API Error:', error);
+      return new Response('OpenAI Vision API failed', { status: 500 });
     }
-
-    // 한국어인 경우 Naver OCR 사용
-    if (!OCR_SECRET_KEY || !OCR_INVOKE_URL) {
-      return new Response('OCR credentials not configured', { status: 500 });
-    }
-
-    const timestamp = new Date().getTime();
-    
-    const requestBody = {
-      version: "V2",
-      requestId: timestamp.toString(),
-      timestamp: timestamp,
-      lang: "ko",
-      images: [
-        {
-          format: "jpg",
-          name: "test",
-          data: imageData.includes('base64,') ? 
-            imageData.split('base64,')[1] : // base64 헤더가 있는 경우
-            imageData // 이미 base64 데이터만 있는 경우
-        }
-      ]
-    };
-
-    const response = await fetch(OCR_INVOKE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-OCR-SECRET': OCR_SECRET_KEY,
-        'Accept': 'application/json' // Accept 헤더 추가
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      console.error('OCR Error Status:', response.status);
-      console.error('OCR Error Text:', await response.text());
-      return new Response('OCR request failed', { status: response.status });
-    }
-
-    const result = await response.json();
-    
-    if (result.images && result.images[0].fields) {
-      const text = result.images[0].fields
-        .map((field: any) => field.inferText)
-        .join(' ')
-        .trim();
-      
-      return json({ text });
-    }
-
-    return json({ text: '' });
   } catch (error) {
     console.error('OCR Error:', error);
     return new Response('Internal server error', { status: 500 });
