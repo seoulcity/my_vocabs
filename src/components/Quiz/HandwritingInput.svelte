@@ -97,7 +97,7 @@
 
     recognitionTimeout = setTimeout(async () => {
       await recognizeHandwriting();
-    }, 380); // 사용자가 그리기를 멈추고 0.38초 후 자동 인식
+    }, 500); // 사용자가 그리기를 멈추고 0.5초 후 자동 인식
   }
 
   function draw(e: MouseEvent | TouchEvent) {
@@ -183,9 +183,10 @@
     if (isRecognizing || !hasDrawing) return;
     
     isRecognizing = true;
-    const imageData = canvas.toDataURL('image/jpeg', 0.5);
+    // 이미지 품질과 형식 최적화
+    const imageData = canvas.toDataURL('image/jpeg', 0.8); // 품질을 0.8로 높임
     
-    // 캐시 확에 언어 정보 포함
+    // 캐시 키에 언어 정보 포함
     const cacheKey = `${imageData}_${inputLang}`;
     if (recognitionCache.has(cacheKey)) {
       recognizedText = recognitionCache.get(cacheKey)!;
@@ -196,6 +197,10 @@
 
     try {
       recognizedText = await recognizeText(imageData, inputLang);
+      
+      if (!recognizedText) {
+        throw new Error('No text recognized');
+      }
       
       // 캐시 저장
       recognitionCache.set(cacheKey, recognizedText);
