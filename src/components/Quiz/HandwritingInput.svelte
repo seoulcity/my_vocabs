@@ -1,13 +1,14 @@
 <!-- src/components/Quiz/HandwritingInput.svelte -->
 <script lang="ts">
   import { onMount, createEventDispatcher } from 'svelte';
-  import { createVisionCompletion } from '../../lib/services/openai';
+  import { recognizeText } from '../../lib/services/naverOcr';
   import { fade, fly } from 'svelte/transition';
   
   export let width = 400;
   export let height = 200;
   export let word: string = '';
   
+  let inputLang: 'ko' | 'en' = 'ko'; // 기본값은 한국어
   const dispatch = createEventDispatcher();
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D;
@@ -141,8 +142,8 @@
     isRecognizing = true;
     const imageData = canvas.toDataURL('image/jpeg', 0.5);
     
-    // 캐시 확인
-    const cacheKey = imageData;
+    // 캐시 확에 언어 정보 포함
+    const cacheKey = `${imageData}_${inputLang}`;
     if (recognitionCache.has(cacheKey)) {
       recognizedText = recognitionCache.get(cacheKey)!;
       showRecognitionResult = true;
@@ -151,8 +152,7 @@
     }
 
     try {
-      const response = await createVisionCompletion(imageData);
-      recognizedText = response.message.trim();
+      recognizedText = await recognizeText(imageData, inputLang);
       
       // 캐시 저장
       recognitionCache.set(cacheKey, recognizedText);
@@ -175,6 +175,23 @@
 </script>
 
 <div class="handwriting-input" transition:fade>
+  <div class="flex justify-end mb-2">
+    <div class="inline-flex rounded-lg border border-gray-200">
+      <button
+        class="px-4 py-2 rounded-l-lg {inputLang === 'ko' ? 'bg-pink-500 text-white' : 'bg-white text-gray-600'}"
+        on:click={() => inputLang = 'ko'}
+      >
+        한국어
+      </button>
+      <button
+        class="px-4 py-2 rounded-r-lg {inputLang === 'en' ? 'bg-pink-500 text-white' : 'bg-white text-gray-600'}"
+        on:click={() => inputLang = 'en'}
+      >
+        English
+      </button>
+    </div>
+  </div>
+
   <canvas
     bind:this={canvas}
     on:mousedown={startDrawing}
