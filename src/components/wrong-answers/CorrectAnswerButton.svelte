@@ -1,3 +1,4 @@
+<!-- src/components/wrong-answers/CorrectAnswerButton.svelte -->
 <script lang="ts">
   import { createClient } from '@supabase/supabase-js';
   import { browser } from '$app/environment';

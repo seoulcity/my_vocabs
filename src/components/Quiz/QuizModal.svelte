@@ -3,6 +3,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { createChatCompletion, type ChatMessage } from '../../lib/services/openai';
   import { createClient } from '@supabase/supabase-js';
+  import HandwritingInput from './HandwritingInput.svelte';
   
   export let show = false;
   export let quizWords: { 
@@ -35,6 +36,7 @@
   let showSubmitConfirm = false;
   let showExample = false;
   let generatingExampleFor: string | null = null;
+  let inputMode: 'keyboard' | 'handwriting' = 'keyboard';
 
   function handleClose() {
     dispatch('close');
@@ -310,6 +312,21 @@
     }
   }
 
+  function handleHandwritingSubmit(event: CustomEvent) {
+    const recognizedText = event.detail.text;
+    tempInput = recognizedText;
+    
+    if (currentQuizIndex < quizWords.length - 1) {
+      handleNext();
+    } else {
+      showSubmitConfirm = true;
+    }
+  }
+
+  function toggleInputMode() {
+    inputMode = inputMode === 'keyboard' ? 'handwriting' : 'keyboard';
+  }
+
   onMount(() => {
     window.addEventListener('keydown', handleKeydown);
     return () => {
@@ -412,17 +429,43 @@
               {/if}
             {/if}
           </div>
-          <input
-            type="text"
-            bind:value={tempInput}
-            placeholder={isFocused ? '' : '정답을 입력하고 엔터를 눌러주세요 💭'}
-            on:keydown={handleKeyPress}
-            on:compositionstart={handleCompositionStart}
-            on:compositionend={handleCompositionEnd}
-            on:focus={handleFocus}
-            on:blur={handleBlur}
-            class="w-full p-3 border-2 border-pink-200 rounded-lg focus:border-pink-400 focus:ring focus:ring-pink-200 focus:ring-opacity-50 text-center"
-          />
+          <div class="space-y-4">
+            <div class="flex justify-center gap-4 mb-4">
+              <button
+                class="px-4 py-2 rounded-full {inputMode === 'keyboard' ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700'}"
+                on:click={() => inputMode = 'keyboard'}
+              >
+                ⌨️ 키보드 입력
+              </button>
+              <button
+                class="px-4 py-2 rounded-full {inputMode === 'handwriting' ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700'}"
+                on:click={() => inputMode = 'handwriting'}
+              >
+                ✍️ 필기 입력
+              </button>
+            </div>
+
+            {#if inputMode === 'keyboard'}
+              <input
+                type="text"
+                bind:value={tempInput}
+                placeholder={isFocused ? '' : '정답을 입력하고 엔터를 눌러주세요 💭'}
+                on:keydown={handleKeyPress}
+                on:compositionstart={handleCompositionStart}
+                on:compositionend={handleCompositionEnd}
+                on:focus={handleFocus}
+                on:blur={handleBlur}
+                class="w-full p-3 border-2 border-pink-200 rounded-lg focus:border-pink-400 focus:ring focus:ring-pink-200 focus:ring-opacity-50 text-center"
+              />
+            {:else}
+              <HandwritingInput
+                on:submit={handleHandwritingSubmit}
+                width={400}
+                height={200}
+                word={quizWords[currentQuizIndex]?.word || ''}
+              />
+            {/if}
+          </div>
           
           <div class="mt-4 space-y-2">
             <p class="text-sm font-medium text-pink-600">현재까지의 답안:</p>
