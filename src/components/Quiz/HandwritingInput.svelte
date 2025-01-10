@@ -97,7 +97,7 @@
 
     recognitionTimeout = setTimeout(async () => {
       await recognizeHandwriting();
-    }, 500); // 사용자가 그리기를 멈추고 0.5초 후 자동 인식
+    }, 380); // 사용자가 그리기를 멈추고 0.38초 후 자동 인식
   }
 
   function draw(e: MouseEvent | TouchEvent) {
